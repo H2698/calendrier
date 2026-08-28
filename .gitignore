@@ -21,6 +21,7 @@ media/
 .env.*
 !.env.example
 .vercel/
+.vercel-cli/
 
 # Editors and operating systems
 .idea/
