@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Connexion · Agency Calendar{% endblock %}
+{% block content %}
+  <section class="auth-card">
+    <div class="auth-brand">
+      <span class="brand-mark">AC</span>
+      <span>Agency Calendar</span>
+    </div>
+    <p class="eyebrow">Espace interne</p>
+    <h1>Ravi de vous revoir</h1>
+    <p class="muted-text">Connectez-vous avec votre compte agence.</p>
+
+    <form method="post" class="form-stack" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <div class="form-error">E-mail ou mot de passe incorrect, ou compte désactivé.</div>
+      {% endif %}
+      <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+      {{ form.username }}
+      {% for error in form.username.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+
+      <div class="label-row">
+        <label for="{{ form.password.id_for_label }}">{{ form.password.label }}</label>
+        <a href="{% url 'accounts:password_reset' %}">Mot de passe oublié ?</a>
+      </div>
+      {{ form.password }}
+      {% for error in form.password.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      <button class="button primary full" type="submit">Se connecter</button>
+    </form>
+    <p class="auth-note">Les comptes sont créés uniquement par l’administrateur.</p>
+  </section>
+{% endblock %}

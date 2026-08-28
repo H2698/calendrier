@@ -1,0 +1,61 @@
+{% load static %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{% block title %}Agency Calendar{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="{% if user.is_authenticated %}app-shell{% else %}auth-shell{% endif %}">
+  {% if user.is_authenticated %}
+    <aside class="sidebar">
+      <a class="brand" href="{% url 'dashboard' %}" aria-label="Agency Calendar">
+        <span class="brand-mark">AC</span>
+        <span>Agency Calendar</span>
+      </a>
+      <nav class="main-nav" aria-label="Navigation principale">
+        <a class="nav-link active" href="{% url 'dashboard' %}">Dashboard</a>
+        <span class="nav-link muted">Calendrier</span>
+        <span class="nav-link muted">Clients</span>
+        <span class="nav-link muted">Équipe</span>
+        <span class="nav-link muted">Notifications</span>
+        {% if current_role != 'member' %}<span class="nav-link muted">Historique</span>{% endif %}
+        <span class="nav-link muted">Paramètres</span>
+      </nav>
+      <div class="sidebar-user">
+        <span class="avatar" style="--avatar-color: {{ user.profile.calendar_color }}">
+          {{ user.profile.full_name|first|upper }}
+        </span>
+        <span>
+          <strong>{{ user.profile.full_name }}</strong>
+          <small>{{ user.profile.get_role_display }}</small>
+        </span>
+      </div>
+    </aside>
+  {% endif %}
+
+  <main class="{% if user.is_authenticated %}app-main{% else %}auth-main{% endif %}">
+    {% if user.is_authenticated %}
+      <header class="topbar">
+        <div>
+          <small class="eyebrow">Espace agence</small>
+          <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+        </div>
+        <form action="{% url 'accounts:logout' %}" method="post">
+          {% csrf_token %}
+          <button class="button secondary" type="submit">Déconnexion</button>
+        </form>
+      </header>
+    {% endif %}
+
+    {% if messages %}
+      <div class="messages">
+        {% for message in messages %}<p class="message">{{ message }}</p>{% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

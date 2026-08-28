@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard · Agency Calendar{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+  <section class="welcome-row">
+    <div>
+      <p class="eyebrow">{% now "l j F Y" %}</p>
+      <h2>Bonjour {{ user.first_name|default:user.profile.full_name }}</h2>
+      <p class="muted-text">Voici un aperçu de votre planning d’agence.</p>
+    </div>
+    {% if can_manage_calendar %}
+      <button class="button primary" type="button" disabled title="Disponible dans la phase Calendrier">+ Nouveau rendez-vous</button>
+    {% endif %}
+  </section>
+
+  <section class="kpi-grid" aria-label="Indicateurs du calendrier">
+    <article class="kpi-card"><span>Aujourd’hui</span><strong>—</strong><small>Rendez-vous</small></article>
+    <article class="kpi-card"><span>Cette semaine</span><strong>—</strong><small>Rendez-vous</small></article>
+    <article class="kpi-card"><span>Shootings</span><strong>—</strong><small>Planifiés</small></article>
+    <article class="kpi-card"><span>À venir</span><strong>—</strong><small>Événements</small></article>
+  </section>
+
+  <section class="placeholder-card">
+    <p class="eyebrow">Phase Auth active</p>
+    <h3>Votre espace est prêt</h3>
+    <p class="muted-text">Les données du calendrier apparaîtront ici après l’implémentation des modules Clients et Rendez-vous.</p>
+  </section>
+{% endblock %}

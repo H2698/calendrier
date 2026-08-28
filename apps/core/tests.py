@@ -6,11 +6,10 @@ from django.urls import reverse
 
 
 class HealthViewTests(TestCase):
-    def test_index_returns_service_metadata(self):
+    def test_index_redirects_anonymous_user_to_login(self):
         response = self.client.get(reverse("index"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["service"], "agency-calendar")
+        self.assertRedirects(response, reverse('accounts:login'))
 
     def test_health_checks_database(self):
         response = self.client.get(reverse("health"))

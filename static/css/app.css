@@ -1,0 +1,109 @@
+:root {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --text: #172033;
+  --muted: #677189;
+  --line: #e4e8f0;
+  --primary: #5b4df7;
+  --primary-dark: #4738db;
+  --danger-soft: #fff1f2;
+  --danger: #be123c;
+  --radius: 16px;
+  --shadow: 0 18px 50px rgba(31, 42, 68, 0.1);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); }
+a { color: var(--primary); text-decoration: none; }
+button, input { font: inherit; }
+
+.auth-shell {
+  background:
+    radial-gradient(circle at 15% 15%, rgba(91, 77, 247, 0.18), transparent 28rem),
+    linear-gradient(135deg, #f7f7ff, #eef3fb);
+}
+.auth-main { min-height: 100vh; display: grid; place-items: center; padding: 28px; }
+.auth-card {
+  width: min(100%, 440px);
+  padding: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+.auth-card h1 { margin: 8px 0 10px; font-size: clamp(1.8rem, 5vw, 2.35rem); line-height: 1.1; }
+.auth-brand, .brand { display: flex; align-items: center; gap: 11px; color: var(--text); font-weight: 750; }
+.auth-brand { margin-bottom: 36px; }
+.brand-mark { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 11px; color: #fff; background: linear-gradient(135deg, #6d5cff, #3f2ad4); font-size: 0.82rem; }
+.eyebrow { margin: 0 0 6px; color: var(--primary); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+.muted-text { color: var(--muted); line-height: 1.6; }
+.form-stack { display: grid; gap: 10px; margin-top: 28px; }
+.form-stack label, .label-row { font-size: 0.86rem; font-weight: 700; }
+.label-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.label-row a { font-weight: 600; }
+.form-stack input { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; outline: none; background: #fff; color: var(--text); }
+.form-stack input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(91, 77, 247, 0.12); }
+.form-stack ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 0.8rem; }
+.form-stack p { display: grid; gap: 8px; margin: 0; }
+.form-error { padding: 12px 14px; border-radius: 10px; color: var(--danger); background: var(--danger-soft); font-size: 0.86rem; }
+.field-error { color: var(--danger); }
+.button { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 8px; padding: 0 18px; border: 0; border-radius: 11px; cursor: pointer; font-weight: 750; transition: 160ms ease; }
+.button.primary { color: #fff; background: var(--primary); }
+.button.primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+.button.secondary { color: var(--text); border: 1px solid var(--line); background: var(--surface); }
+.button.full { width: 100%; margin-top: 12px; }
+.button:disabled { cursor: not-allowed; opacity: 0.68; transform: none; }
+.auth-note, .back-link { display: block; margin: 22px 0 0; text-align: center; color: var(--muted); font-size: 0.82rem; }
+
+.app-shell { display: grid; grid-template-columns: 250px minmax(0, 1fr); }
+.sidebar { position: sticky; top: 0; display: flex; height: 100vh; flex-direction: column; padding: 26px 20px; border-right: 1px solid var(--line); background: var(--surface); }
+.brand { padding: 0 8px; }
+.main-nav { display: grid; gap: 5px; margin-top: 38px; }
+.nav-link { padding: 11px 13px; border-radius: 10px; color: #4d5870; font-weight: 650; }
+.nav-link.active { color: var(--primary); background: #f0efff; }
+.nav-link.muted { cursor: default; opacity: 0.62; }
+.sidebar-user { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 14px 8px 0; border-top: 1px solid var(--line); }
+.sidebar-user strong, .sidebar-user small { display: block; max-width: 145px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-user small { margin-top: 3px; color: var(--muted); }
+.avatar { display: grid; width: 38px; height: 38px; flex: 0 0 auto; place-items: center; border-radius: 50%; color: #fff; background: var(--avatar-color, var(--primary)); font-weight: 800; }
+.app-main { width: 100%; min-width: 0; padding: 0 34px 46px; }
+.topbar { display: flex; min-height: 98px; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--line); }
+.topbar h1 { margin: 0; font-size: 1.55rem; }
+.welcome-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 38px 0 26px; }
+.welcome-row h2 { margin: 3px 0 0; font-size: 1.8rem; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.kpi-card, .placeholder-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 7px 25px rgba(31, 42, 68, 0.04); }
+.kpi-card { display: grid; gap: 7px; padding: 20px; }
+.kpi-card span, .kpi-card small { color: var(--muted); }
+.kpi-card strong { font-size: 2rem; }
+.placeholder-card { margin-top: 18px; padding: 30px; }
+.placeholder-card h3 { margin: 5px 0; font-size: 1.2rem; }
+.messages { margin-top: 18px; }
+.message { padding: 12px 15px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: 82px minmax(0, 1fr); }
+  .sidebar { padding-inline: 14px; }
+  .brand > span:last-child, .nav-link, .sidebar-user > span:last-child { font-size: 0; }
+  .nav-link::first-letter { font-size: 0.9rem; }
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .auth-main { padding: 16px; }
+  .auth-card { padding: 28px 22px; }
+  .app-shell { display: block; }
+  .sidebar { position: static; width: 100%; height: auto; padding: 14px 18px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sidebar .brand > span:last-child { font-size: 1rem; }
+  .main-nav, .sidebar-user { display: none; }
+  .app-main { padding: 0 18px 34px; }
+  .topbar { min-height: 78px; }
+  .welcome-row { align-items: flex-start; flex-direction: column; padding-top: 28px; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi-card { padding: 15px; }
+}

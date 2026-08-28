@@ -1,17 +1,14 @@
 from django.db import DatabaseError, connection
 from django.http import JsonResponse
+from django.shortcuts import redirect
 from django.views.decorators.http import require_GET
 
 
 @require_GET
 def index(request):
-    return JsonResponse(
-        {
-            "service": "agency-calendar",
-            "status": "ok",
-            "health": request.build_absolute_uri("/health/"),
-        }
-    )
+    if request.user.is_authenticated:
+        return redirect('dashboard')
+    return redirect('accounts:login')
 
 
 @require_GET
