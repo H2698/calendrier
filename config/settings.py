@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     'apps.audit',
     'apps.calendar_app',
     'apps.clients',
+    'apps.notifications',
     'apps.core',
 ]
 

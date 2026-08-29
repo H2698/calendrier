@@ -29,5 +29,6 @@ urlpatterns = [
     path('', include('apps.audit.urls')),
     path('', include('apps.calendar_app.urls')),
     path('', include('apps.clients.urls')),
+    path('', include('apps.notifications.urls')),
     path('admin/', admin.site.urls),
 ]

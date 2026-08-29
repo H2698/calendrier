@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications · Agency Calendar{% endblock %}
+{% block page_title %}Notifications{% endblock %}
+
+{% block content %}
+  <section class="section-heading">
+    <div>
+      <small class="eyebrow">Centre de notifications</small>
+      <h2>Vos alertes</h2>
+      <p class="muted-text">Créations, modifications, annulations et rappels de rendez-vous.</p>
+      <div class="notification-tabs" aria-label="Filtrer les notifications">
+        <a class="{% if not unread_only %}active{% endif %}" href="{% url 'notifications:page' %}">Toutes</a>
+        <a class="{% if unread_only %}active{% endif %}" href="{% url 'notifications:page' %}?view=unread">Non lues</a>
+      </div>
+    </div>
+    {% if unread_notifications %}<button class="button secondary" id="read-all" type="button">Tout marquer comme lu</button>{% endif %}
+  </section>
+
+  <section class="data-card notification-list" id="notification-list">
+    {% for item in notifications %}
+      <article class="notification-row{% if not item.is_read %} unread{% endif %}" data-id="{{ item.id }}">
+        <span class="notification-dot" aria-hidden="true"></span>
+        <div class="notification-content">
+          <strong>{{ item.title }}</strong>
+          <span>{{ item.message }}</span>
+          <small>{{ item.created_at|date:'d/m/Y à H:i' }}</small>
+        </div>
+        {% if item.appointment_id %}<a class="button quiet" href="{% url 'calendar_app:calendar-page' %}">Voir</a>{% endif %}
+        {% if not item.is_read %}<button class="button quiet mark-read" type="button">Marquer comme lu</button>{% endif %}
+      </article>
+    {% empty %}
+      <p class="empty-state">Aucune notification pour le moment.</p>
+    {% endfor %}
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1];
+  const markRead = async (row) => {
+    const response = await fetch(`/api/notifications/${row.dataset.id}/read/`, {
+      method: 'POST', headers: {'X-CSRFToken': csrfToken || ''}
+    });
+    if (!response.ok) return;
+    row.classList.remove('unread');
+    row.querySelector('.mark-read')?.remove();
+  };
+  document.querySelectorAll('.mark-read').forEach((button) => {
+    button.addEventListener('click', () => markRead(button.closest('.notification-row')));
+  });
+  document.querySelector('#read-all')?.addEventListener('click', async (event) => {
+    const response = await fetch('{% url "notifications:read-all" %}', {
+      method: 'POST', headers: {'X-CSRFToken': csrfToken || ''}
+    });
+    if (!response.ok) return;
+    document.querySelectorAll('.notification-row').forEach((row) => row.classList.remove('unread'));
+    document.querySelectorAll('.mark-read').forEach((button) => button.remove());
+    event.currentTarget.remove();
+  });
+</script>
+{% endblock %}

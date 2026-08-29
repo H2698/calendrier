@@ -5,6 +5,8 @@ from django.utils import timezone
 
 from apps.accounts.models import Profile
 from apps.audit.services import log_activity
+from apps.notifications.models import Notification
+from apps.notifications.services import schedule_appointment_notifications
 
 from .models import Appointment, AppointmentMember
 
@@ -112,6 +114,8 @@ def create_appointment(*, actor, data, member_ids, force_conflicts=False):
         entity_id=appointment.id,
         new_values=appointment_snapshot(appointment),
     )
+    schedule_appointment_notifications(appointment, Notification.Type.CREATED)
+    schedule_appointment_notifications(appointment, Notification.Type.REMINDER)
     return appointment, conflicts
 
 
@@ -160,6 +164,8 @@ def update_appointment(
         old_values=old_values,
         new_values=appointment_snapshot(appointment),
     )
+    schedule_appointment_notifications(appointment, Notification.Type.UPDATED)
+    schedule_appointment_notifications(appointment, Notification.Type.REMINDER)
     return appointment, conflicts
 
 
@@ -191,4 +197,10 @@ def cancel_appointment(*, actor, appointment):
         old_values=old_values,
         new_values=appointment_snapshot(appointment),
     )
+    Notification.objects.filter(
+        appointment=appointment,
+        type=Notification.Type.REMINDER,
+        sent_at__isnull=True,
+    ).delete()
+    schedule_appointment_notifications(appointment, Notification.Type.CANCELLED)
     return appointment

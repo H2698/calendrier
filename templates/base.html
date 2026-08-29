@@ -23,7 +23,9 @@
           <a class="nav-link" href="{% url 'clients:list' %}">Clients</a>
         {% endif %}
         {% if current_role != 'member' %}<a class="nav-link" href="{% url 'accounts:team' %}">Équipe</a>{% endif %}
-        <span class="nav-link muted">Notifications</span>
+        <a class="nav-link" href="{% url 'notifications:page' %}">
+          Notifications{% if unread_notifications %} <span class="nav-badge">{{ unread_notifications }}</span>{% endif %}
+        </a>
         {% if current_role != 'member' %}<span class="nav-link muted">Historique</span>{% endif %}
         <span class="nav-link muted">Paramètres</span>
       </nav>
@@ -46,10 +48,16 @@
           <small class="eyebrow">Espace agence</small>
           <h1>{% block page_title %}Dashboard{% endblock %}</h1>
         </div>
-        <form action="{% url 'accounts:logout' %}" method="post">
-          {% csrf_token %}
-          <button class="button secondary" type="submit">Déconnexion</button>
-        </form>
+        <div class="topbar-actions">
+          <a class="notification-bell" href="{% url 'notifications:page' %}" aria-label="Notifications">
+            <span aria-hidden="true">&#128276;</span>
+            {% if unread_notifications %}<strong>{{ unread_notifications }}</strong>{% endif %}
+          </a>
+          <form action="{% url 'accounts:logout' %}" method="post">
+            {% csrf_token %}
+            <button class="button secondary" type="submit">Déconnexion</button>
+          </form>
+        </div>
       </header>
     {% endif %}
 
