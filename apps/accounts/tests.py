@@ -139,3 +139,38 @@ class PermissionTests(TestCase):
             with self.subTest(user=user):
                 with self.assertRaises(PermissionDenied):
                     protected_view(request)
+
+
+class TeamManagementTests(TestCase):
+    password = 'A-strong-test-password-482!'
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = create_user_account(email='team-admin@test.com', password=cls.password, full_name='Team Admin', role=Profile.Role.ADMIN)
+        cls.manager = create_user_account(email='team-manager@test.com', password=cls.password, full_name='Team Manager', role=Profile.Role.MANAGER)
+        cls.member = create_user_account(email='team-member@test.com', password=cls.password, full_name='Team Member', role=Profile.Role.MEMBER)
+
+    def login(self, user):
+        self.client.force_login(user, backend='apps.accounts.backends.EmailBackend')
+
+    def test_admin_creates_and_updates_member(self):
+        import json
+        self.login(self.admin)
+        response = self.client.post(reverse('accounts:team-create-api'), data=json.dumps({'email':'new-member@test.com','password':self.password,'full_name':'New Member','role':'member','calendar_color':'#22C55E'}), content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        user_id = response.json()['data']['id']
+        patched = self.client.patch(reverse('accounts:team-detail-api', args=(user_id,)), data=json.dumps({'role':'manager','is_active':False}), content_type='application/json')
+        self.assertEqual(patched.status_code, 200)
+        self.assertEqual(patched.json()['data']['role'], 'manager')
+        self.assertFalse(patched.json()['data']['is_active'])
+
+    def test_manager_can_view_but_cannot_create(self):
+        import json
+        self.login(self.manager)
+        self.assertEqual(self.client.get(reverse('accounts:team-api')).status_code, 200)
+        self.assertEqual(self.client.post(reverse('accounts:team-create-api'), data=json.dumps({'email':'x@test.com'}), content_type='application/json').status_code, 403)
+
+    def test_member_cannot_access_team(self):
+        self.login(self.member)
+        self.assertEqual(self.client.get(reverse('accounts:team')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('accounts:team-api')).status_code, 403)

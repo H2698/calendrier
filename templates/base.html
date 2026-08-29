@@ -22,7 +22,7 @@
         {% if can_manage_calendar %}
           <a class="nav-link" href="{% url 'clients:list' %}">Clients</a>
         {% endif %}
-        <span class="nav-link muted">Équipe</span>
+        {% if current_role != 'member' %}<a class="nav-link" href="{% url 'accounts:team' %}">Équipe</a>{% endif %}
         <span class="nav-link muted">Notifications</span>
         {% if current_role != 'member' %}<span class="nav-link muted">Historique</span>{% endif %}
         <span class="nav-link muted">Paramètres</span>

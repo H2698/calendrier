@@ -2,11 +2,16 @@ from django.contrib.auth import views as auth_views
 from django.urls import path
 from django.urls import reverse_lazy
 
+from . import views
 from .views import AgencyLoginView
 
 app_name = 'accounts'
 
 urlpatterns = [
+    path('team/', views.team_page, name='team'),
+    path('api/team/', views.team_api, name='team-api'),
+    path('api/team/create/', views.team_create_api, name='team-create-api'),
+    path('api/team/<int:user_id>/', views.team_detail_api, name='team-detail-api'),
     path('login/', AgencyLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path(
