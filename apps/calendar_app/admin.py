@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Appointment, AppointmentMember, AppointmentType
+from .models import Appointment, AppointmentMember, AppointmentType, RecurrenceSeries
 
 
 @admin.register(AppointmentType)
@@ -20,5 +20,10 @@ class AppointmentAdmin(admin.ModelAdmin):
     list_filter = ('status', 'appointment_type')
     search_fields = ('title', 'client__name')
     inlines = (AppointmentMemberInline,)
+
+
+@admin.register(RecurrenceSeries)
+class RecurrenceSeriesAdmin(admin.ModelAdmin):
+    list_display = ('frequency', 'interval_value', 'end_date', 'created_at')
 
 # Register your models here.

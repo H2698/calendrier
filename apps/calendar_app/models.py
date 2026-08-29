@@ -28,6 +28,30 @@ class AppointmentType(models.Model):
         return self.name
 
 
+class RecurrenceSeries(models.Model):
+    class Frequency(models.TextChoices):
+        DAILY = 'daily', 'Chaque jour'
+        WEEKLY = 'weekly', 'Chaque semaine'
+        MONTHLY = 'monthly', 'Chaque mois'
+        CUSTOM = 'custom', 'Personnalisée'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    frequency = models.CharField(max_length=16, choices=Frequency.choices)
+    interval_value = models.PositiveSmallIntegerField(default=1)
+    days_of_week = models.JSONField(default=list, blank=True)
+    end_date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        if self.interval_value < 1:
+            raise ValidationError({'interval_value': 'L’intervalle doit être positif.'})
+        invalid_days = set(self.days_of_week) - set(range(7))
+        if invalid_days:
+            raise ValidationError({'days_of_week': 'Les jours doivent être compris entre 0 et 6.'})
+        if self.frequency == self.Frequency.CUSTOM and not self.days_of_week:
+            raise ValidationError({'days_of_week': 'Choisissez au moins un jour.'})
+
+
 class Appointment(models.Model):
     class Status(models.TextChoices):
         PLANNED = 'planned', 'Planifié'
@@ -60,6 +84,13 @@ class Appointment(models.Model):
         db_index=True,
     )
     notes = models.TextField(blank=True)
+    recurrence_series = models.ForeignKey(
+        RecurrenceSeries,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='appointments',
+    )
     members = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         through='AppointmentMember',

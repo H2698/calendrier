@@ -49,6 +49,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("new-appointment")?.addEventListener("click",()=>createDialog.showModal());
   document.getElementById("appointment-create-form")?.addEventListener("submit", async event => {
     event.preventDefault(); const form=new FormData(event.currentTarget); const body=Object.fromEntries(form); body.member_ids=form.getAll("member_ids").map(Number);
+    if (body.recurrence_frequency) body.recurrence={frequency:body.recurrence_frequency,interval_value:1,end_date:body.recurrence_end_date};
+    delete body.recurrence_frequency; delete body.recurrence_end_date;
     try { await apiFetch("/api/appointments/",{method:"POST",body:JSON.stringify(body)}); createDialog.close(); event.currentTarget.reset(); calendar.refetchEvents(); }
     catch (error) { if(error.status===409 && confirm("Conflit détecté. Créer quand même ?")){ body.force_conflicts=true; try{await apiFetch("/api/appointments/",{method:"POST",body:JSON.stringify(body)});createDialog.close();calendar.refetchEvents();}catch(_){alert("Création impossible.");}} else alert("Vérifiez les informations du rendez-vous."); }
   });

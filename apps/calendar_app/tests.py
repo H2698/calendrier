@@ -250,3 +250,30 @@ class CalendarBackendTests(TestCase):
         admin_response = self.client.get(reverse('calendar_app:calendar-page'))
         self.assertContains(admin_response, 'Nouveau rendez-vous')
         self.assertContains(admin_response, 'Private Client')
+
+    def test_daily_recurrence_creates_real_editable_occurrences(self):
+        response = self._api_create(
+            recurrence={
+                'frequency': 'daily',
+                'interval_value': 1,
+                'end_date': (self.start_at + timedelta(days=2)).date().isoformat(),
+            }
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['occurrence_count'], 3)
+        appointments = list(Appointment.objects.order_by('start_at'))
+        self.assertEqual(len(appointments), 3)
+        self.assertEqual(len({item.recurrence_series_id for item in appointments}), 1)
+
+        self._login(self.manager)
+        edited = appointments[1]
+        patch_response = self.client.patch(
+            reverse('calendar_app:appointment-detail-api', args=(edited.id,)),
+            data=json.dumps({'title': 'Occurrence modifiée'}),
+            content_type='application/json',
+        )
+        self.assertEqual(patch_response.status_code, 200)
+        appointments[0].refresh_from_db()
+        edited.refresh_from_db()
+        self.assertEqual(appointments[0].title, 'Private strategy meeting')
+        self.assertEqual(edited.title, 'Occurrence modifiée')

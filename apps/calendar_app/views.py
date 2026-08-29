@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
@@ -15,6 +16,7 @@ from apps.accounts.permissions import calendar_manager_required
 from apps.clients.models import Client
 
 from .models import Appointment, AppointmentMember, AppointmentType
+from .recurrence import expand_recurrence
 from .services import (
     AppointmentConflictError,
     cancel_appointment,
@@ -202,6 +204,7 @@ def calendar_api(request):
 
 @require_http_methods(['POST'])
 @calendar_manager_required
+@transaction.atomic
 def appointments_api(request):
     try:
         data = _json_body(request)
@@ -212,13 +215,33 @@ def appointments_api(request):
             member_ids=data.get('member_ids', []),
             force_conflicts=bool(data.get('force_conflicts', False)),
         )
+        occurrences = [appointment]
+        if recurrence := data.get('recurrence'):
+            recurrence = dict(recurrence)
+            if isinstance(recurrence.get('end_date'), str):
+                from datetime import date
+                try:
+                    recurrence['end_date'] = date.fromisoformat(recurrence['end_date'])
+                except ValueError as exc:
+                    raise ValidationError({'end_date': 'Date invalide.'}) from exc
+            occurrences, recurrence_conflicts = expand_recurrence(
+                actor=request.user,
+                appointment=appointment,
+                config=recurrence,
+                force_conflicts=bool(data.get('force_conflicts', False)),
+            )
+            conflicts.extend(recurrence_conflicts)
     except AppointmentConflictError as exc:
         return _conflict_error(exc)
     except ValidationError as exc:
         return _validation_error(exc)
     appointment = _appointment_queryset().get(id=appointment.id)
     return JsonResponse(
-        {'data': _appointment_payload(appointment, request.user), 'conflicts': len(conflicts)},
+        {
+            'data': _appointment_payload(appointment, request.user),
+            'conflicts': len(conflicts),
+            'occurrence_count': len(occurrences),
+        },
         status=201,
     )
 
