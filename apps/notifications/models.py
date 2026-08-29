@@ -28,3 +28,22 @@ class Notification(models.Model):
         ordering = ('-created_at',)
         constraints = [models.UniqueConstraint(fields=('user', 'appointment', 'type'), name='unique_user_appointment_notification_type')]
         indexes = [models.Index(fields=('user', 'is_read', 'created_at'))]
+
+
+class PushSubscription(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='push_subscriptions',
+    )
+    endpoint = models.URLField(max_length=2048, unique=True)
+    p256dh = models.TextField()
+    auth = models.TextField()
+    user_agent = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('-last_used_at',)
+        indexes = [models.Index(fields=('user', 'last_used_at'))]

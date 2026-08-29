@@ -168,6 +168,8 @@ button, input { font: inherit; }
 .notification-tabs { display: flex; gap: 6px; margin-top: 14px; }
 .notification-tabs a { padding: 7px 11px; border-radius: 9px; color: var(--muted); font-size: .84rem; font-weight: 700; }
 .notification-tabs a.active { color: var(--primary); background: #f0efff; }
+.push-panel { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 18px; padding: 24px; }
+.push-panel h3 { margin: 4px 0; }
 
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 82px minmax(0, 1fr); }
@@ -197,6 +199,7 @@ button, input { font: inherit; }
   .fc .fc-toolbar { align-items: flex-start; flex-direction: column; gap: 10px; }
   .search-bar input { flex-basis: 100%; }
   .detail-grid, .entity-form { grid-template-columns: 1fr; }
+  .push-panel { align-items: stretch; flex-direction: column; }
   .detail-list div { grid-template-columns: 1fr; gap: 5px; }
   .form-card { padding: 22px; }
 }

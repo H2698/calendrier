@@ -1,0 +1,27 @@
+name: Send due notifications
+
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: send-due-notifications
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Dispatch due notifications
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --retry 3 --retry-delay 10 \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            https://calendrier-hassen5.vercel.app/api/cron/send-due-notifications/

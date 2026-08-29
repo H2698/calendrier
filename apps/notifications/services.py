@@ -1,7 +1,10 @@
 from datetime import timedelta
+import json
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+from pywebpush import WebPushException, webpush
 
 from .models import Notification
 
@@ -30,7 +33,56 @@ def _message(appointment, notification_type):
 
 
 def dispatch_due_notifications():
-    now = timezone.now()
-    due = Notification.objects.select_for_update().filter(sent_at__isnull=True, scheduled_for__lte=now)
-    count = due.update(sent_at=now)
-    return count
+    with transaction.atomic():
+        now = timezone.now()
+        due = list(
+            Notification.objects.select_for_update()
+            .filter(sent_at__isnull=True, scheduled_for__lte=now)
+            .select_related('appointment', 'user')
+            .order_by('scheduled_for')
+        )
+        for notification in due:
+            send_web_push(notification)
+            notification.sent_at = now
+            notification.save(update_fields=('sent_at',))
+    return len(due)
+
+
+def send_web_push(notification):
+    if not settings.VAPID_PRIVATE_KEY or not settings.VAPID_PUBLIC_KEY:
+        return {'sent': 0, 'failed': 0, 'stale': 0, 'configured': False}
+
+    data = json.dumps(
+        {
+            'title': notification.title,
+            'body': notification.message,
+            'url': '/notifications/',
+            'tag': f'notification-{notification.id}',
+        }
+    )
+    result = {'sent': 0, 'failed': 0, 'stale': 0, 'configured': True}
+    for subscription in list(notification.user.push_subscriptions.all()):
+        try:
+            webpush(
+                subscription_info={
+                    'endpoint': subscription.endpoint,
+                    'keys': {'p256dh': subscription.p256dh, 'auth': subscription.auth},
+                },
+                data=data,
+                vapid_private_key=settings.VAPID_PRIVATE_KEY,
+                vapid_claims={'sub': settings.VAPID_SUBJECT},
+                ttl=3600,
+                timeout=10,
+            )
+        except WebPushException as exc:
+            status_code = getattr(exc.response, 'status_code', None)
+            if status_code in {404, 410}:
+                subscription.delete()
+                result['stale'] += 1
+            else:
+                result['failed'] += 1
+        else:
+            subscription.last_used_at = timezone.now()
+            subscription.save(update_fields=('last_used_at',))
+            result['sent'] += 1
+    return result

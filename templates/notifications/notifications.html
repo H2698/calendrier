@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}Notifications · Agency Calendar{% endblock %}
 {% block page_title %}Notifications{% endblock %}
@@ -33,6 +34,19 @@
       <p class="empty-state">Aucune notification pour le moment.</p>
     {% endfor %}
   </section>
+
+  <section class="data-card push-panel" data-push-panel data-public-key="{{ push_public_key }}">
+    <div>
+      <small class="eyebrow">Web Push</small>
+      <h3>Notifications navigateur</h3>
+      <p class="muted-text" data-push-status>
+        {% if push_configured %}Vérification de votre navigateur…{% else %}Configuration serveur requise.{% endif %}
+      </p>
+    </div>
+    <button class="button secondary" data-push-toggle type="button"{% if not push_configured %} disabled{% endif %}>
+      Activer les notifications navigateur
+    </button>
+  </section>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -59,4 +73,5 @@
     event.currentTarget.remove();
   });
 </script>
+<script src="{% static 'js/push.js' %}" defer></script>
 {% endblock %}

@@ -1,6 +1,8 @@
 from datetime import timedelta
+import json
+from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -13,7 +15,7 @@ from apps.calendar_app.services import (
     update_appointment,
 )
 
-from .models import Notification
+from .models import Notification, PushSubscription
 from .services import dispatch_due_notifications
 
 
@@ -183,3 +185,88 @@ class NotificationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Client meeting')
         self.assertContains(response, 'Tout marquer comme lu')
+
+    def test_push_subscription_api_is_authenticated_and_user_scoped(self):
+        url = reverse('notifications:push-subscriptions')
+        payload = {
+            'endpoint': 'https://push.example.test/subscription/one',
+            'keys': {'p256dh': 'browser-public-key', 'auth': 'browser-auth-secret'},
+        }
+        self.assertEqual(
+            self.client.post(url, data=json.dumps(payload), content_type='application/json').status_code,
+            401,
+        )
+
+        self._login(self.member)
+        response = self.client.post(
+            url,
+            data=json.dumps(payload),
+            content_type='application/json',
+            HTTP_USER_AGENT='Notification Test Browser',
+        )
+        self.assertEqual(response.status_code, 201)
+        subscription = PushSubscription.objects.get(endpoint=payload['endpoint'])
+        self.assertEqual(subscription.user, self.member)
+        self.assertEqual(subscription.user_agent, 'Notification Test Browser')
+
+        invalid = self.client.post(
+            url,
+            data=json.dumps({**payload, 'endpoint': 'http://insecure.example.test'}),
+            content_type='application/json',
+        )
+        self.assertEqual(invalid.status_code, 400)
+
+        deleted = self.client.delete(
+            url,
+            data=json.dumps({'endpoint': payload['endpoint']}),
+            content_type='application/json',
+        )
+        self.assertEqual(deleted.status_code, 200)
+        self.assertFalse(PushSubscription.objects.filter(id=subscription.id).exists())
+
+    def test_service_worker_is_served_from_root_scope_without_cache(self):
+        response = self.client.get(reverse('notifications:service-worker'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Service-Worker-Allowed'], '/')
+        self.assertIn('no-cache', response['Cache-Control'])
+        self.assertContains(response, "self.addEventListener('push'")
+
+    @override_settings(
+        VAPID_PUBLIC_KEY='public-vapid-key',
+        VAPID_PRIVATE_KEY='private-vapid-key',
+        VAPID_SUBJECT='mailto:notifications@example.test',
+    )
+    @patch('apps.notifications.services.webpush')
+    def test_due_push_is_sent_once(self, webpush_mock):
+        self.member.push_subscriptions.create(
+            endpoint='https://push.example.test/subscription/reminder',
+            p256dh='browser-public-key',
+            auth='browser-auth-secret',
+            user_agent='Test Browser',
+        )
+        self._create_appointment()
+
+        self.assertEqual(dispatch_due_notifications(), 1)
+        self.assertEqual(dispatch_due_notifications(), 0)
+        webpush_mock.assert_called_once()
+        call = webpush_mock.call_args.kwargs
+        self.assertEqual(call['subscription_info']['keys']['auth'], 'browser-auth-secret')
+        self.assertEqual(
+            call['vapid_claims']['sub'],
+            'mailto:notifications@example.test',
+        )
+
+    @override_settings(CRON_SECRET='test-cron-secret-value')
+    @patch('apps.notifications.views.dispatch_due_notifications', return_value=3)
+    def test_scheduler_endpoint_requires_bearer_secret(self, dispatch_mock):
+        url = reverse('notifications:send-due-notifications')
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.assertFalse(dispatch_mock.called)
+
+        response = self.client.get(
+            url,
+            HTTP_AUTHORIZATION='Bearer test-cron-secret-value',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['processed'], 3)
+        dispatch_mock.assert_called_once()

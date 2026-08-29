@@ -1,10 +1,18 @@
-from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
-from django.utils import timezone
-from django.views.decorators.http import require_GET, require_POST
+import json
+import hmac
 
-from .models import Notification
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, render
+from django.template.loader import render_to_string
+from django.utils import timezone
+from django.views.decorators.http import require_GET, require_http_methods, require_POST
+
+from .models import Notification, PushSubscription
+from .services import dispatch_due_notifications
 
 
 def payload(item):
@@ -34,7 +42,79 @@ def notifications_page(request):
     return render(
         request,
         'notifications/notifications.html',
-        {'notifications': queryset[:100], 'unread_only': unread_only},
+        {
+            'notifications': queryset[:100],
+            'unread_only': unread_only,
+            'push_public_key': settings.VAPID_PUBLIC_KEY,
+            'push_configured': bool(settings.VAPID_PUBLIC_KEY and settings.VAPID_PRIVATE_KEY),
+        },
+    )
+
+
+@require_GET
+def service_worker(request):
+    response = HttpResponse(
+        render_to_string('notifications/service-worker.js'),
+        content_type='application/javascript',
+    )
+    response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response['Service-Worker-Allowed'] = '/'
+    return response
+
+
+@require_GET
+def send_due_notifications_api(request):
+    expected = settings.CRON_SECRET
+    supplied = request.headers.get('Authorization', '').removeprefix('Bearer ').strip()
+    if not expected or not hmac.compare_digest(supplied, expected):
+        return JsonResponse({'error': 'forbidden'}, status=403)
+    return JsonResponse({'ok': True, 'processed': dispatch_due_notifications()})
+
+
+@require_http_methods(['GET', 'POST', 'DELETE'])
+def push_subscription_api(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'authentication_required'}, status=401)
+    if request.method == 'GET':
+        return JsonResponse(
+            {
+                'configured': bool(
+                    settings.VAPID_PUBLIC_KEY and settings.VAPID_PRIVATE_KEY
+                ),
+                'public_key': settings.VAPID_PUBLIC_KEY,
+                'subscription_count': request.user.push_subscriptions.count(),
+            }
+        )
+    try:
+        data = json.loads(request.body or b'{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'invalid_json'}, status=400)
+
+    endpoint = data.get('endpoint', '') if isinstance(data, dict) else ''
+    if request.method == 'DELETE':
+        deleted, _ = request.user.push_subscriptions.filter(endpoint=endpoint).delete()
+        return JsonResponse({'ok': True, 'deleted': bool(deleted)})
+
+    keys = data.get('keys', {}) if isinstance(data, dict) else {}
+    if not endpoint or not isinstance(keys, dict) or not keys.get('p256dh') or not keys.get('auth'):
+        return JsonResponse({'error': 'invalid_subscription'}, status=400)
+    try:
+        URLValidator(schemes=('https',))(endpoint)
+    except ValidationError:
+        return JsonResponse({'error': 'invalid_endpoint'}, status=400)
+
+    subscription, created = PushSubscription.objects.update_or_create(
+        endpoint=endpoint,
+        defaults={
+            'user': request.user,
+            'p256dh': keys['p256dh'],
+            'auth': keys['auth'],
+            'user_agent': request.headers.get('User-Agent', '')[:1000],
+        },
+    )
+    return JsonResponse(
+        {'ok': True, 'created': created, 'id': str(subscription.id)},
+        status=201 if created else 200,
     )
 
 
