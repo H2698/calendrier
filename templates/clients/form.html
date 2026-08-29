@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}{% if mode == 'create' %}Nouveau client{% else %}Modifier {{ client.name }}{% endif %} · Agency Calendar{% endblock %}
+{% block page_title %}{% if mode == 'create' %}Nouveau client{% else %}Modifier le client{% endif %}{% endblock %}
+{% block content %}
+  <section class="form-card data-card">
+    <div>
+      <p class="eyebrow">Informations client</p>
+      <h2>{% if mode == 'create' %}Ajouter un client{% else %}Mettre à jour {{ client.name }}{% endif %}</h2>
+      <p class="muted-text">Les informations privées sont réservées aux utilisateurs autorisés.</p>
+    </div>
+    <form method="post" class="entity-form" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="form-error">{{ form.non_field_errors }}</div>{% endif %}
+      {% for field in form %}
+        <div class="form-field {% if field.name == 'notes' %}wide{% endif %}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        </div>
+      {% endfor %}
+      <div class="form-actions wide">
+        <a class="button secondary" href="{% if client %}{% url 'clients:detail' client.id %}{% else %}{% url 'clients:list' %}{% endif %}">Annuler</a>
+        <button class="button primary" type="submit">{% if mode == 'create' %}Créer le client{% else %}Enregistrer{% endif %}</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

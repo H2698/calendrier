@@ -25,5 +25,6 @@ urlpatterns = [
     path('health/', views.health, name='health'),
     path('dashboard/', dashboard, name='dashboard'),
     path('', include('apps.accounts.urls')),
+    path('', include('apps.clients.urls')),
     path('admin/', admin.site.urls),
 ]

@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}{{ client.name }} · Agency Calendar{% endblock %}
+{% block page_title %}Fiche client{% endblock %}
+{% block content %}
+  <section class="section-heading">
+    <div>
+      <a class="back-inline" href="{% url 'clients:list' %}">← Tous les clients</a>
+      <h2>{{ client.name }}</h2>
+      <p class="muted-text">{{ client.company_name|default:"Client particulier" }}</p>
+    </div>
+    <a class="button primary" href="{% url 'clients:edit' client.id %}">Modifier</a>
+  </section>
+
+  <section class="detail-grid">
+    <article class="data-card detail-card">
+      <p class="eyebrow">Coordonnées</p>
+      <dl class="detail-list">
+        <div><dt>Téléphone</dt><dd>{{ client.phone|default:"Non renseigné" }}</dd></div>
+        <div><dt>E-mail</dt><dd>{{ client.email|default:"Non renseigné" }}</dd></div>
+        <div><dt>Créé par</dt><dd>{{ client.created_by.profile.full_name }}</dd></div>
+        <div><dt>Dernière mise à jour</dt><dd>{{ client.updated_at|date:"d/m/Y à H:i" }}</dd></div>
+      </dl>
+    </article>
+    <article class="data-card detail-card">
+      <p class="eyebrow">Notes internes</p>
+      <div class="notes-content">{{ client.notes|default:"Aucune note pour ce client."|linebreaksbr }}</div>
+    </article>
+  </section>
+
+  <section class="data-card timeline-card">
+    <p class="eyebrow">Rendez-vous</p>
+    <h3>Historique client</h3>
+    <p class="muted-text">Les prochains et derniers rendez-vous apparaîtront ici après la phase Calendrier.</p>
+  </section>
+{% endblock %}

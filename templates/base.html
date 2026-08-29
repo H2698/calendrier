@@ -18,7 +18,9 @@
       <nav class="main-nav" aria-label="Navigation principale">
         <a class="nav-link active" href="{% url 'dashboard' %}">Dashboard</a>
         <span class="nav-link muted">Calendrier</span>
-        <span class="nav-link muted">Clients</span>
+        {% if can_manage_calendar %}
+          <a class="nav-link" href="{% url 'clients:list' %}">Clients</a>
+        {% endif %}
         <span class="nav-link muted">Équipe</span>
         <span class="nav-link muted">Notifications</span>
         {% if current_role != 'member' %}<span class="nav-link muted">Historique</span>{% endif %}
