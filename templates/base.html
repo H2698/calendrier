@@ -7,6 +7,7 @@
   <meta name="color-scheme" content="light">
   <title>{% block title %}Agency Calendar{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  {% block extra_head %}{% endblock %}
 </head>
 <body class="{% if user.is_authenticated %}app-shell{% else %}auth-shell{% endif %}">
   {% if user.is_authenticated %}
@@ -17,7 +18,7 @@
       </a>
       <nav class="main-nav" aria-label="Navigation principale">
         <a class="nav-link active" href="{% url 'dashboard' %}">Dashboard</a>
-        <span class="nav-link muted">Calendrier</span>
+        <a class="nav-link" href="{% url 'calendar_app:calendar-page' %}">Calendrier</a>
         {% if can_manage_calendar %}
           <a class="nav-link" href="{% url 'clients:list' %}">Clients</a>
         {% endif %}
@@ -59,5 +60,6 @@
     {% endif %}
     {% block content %}{% endblock %}
   </main>
+  {% block extra_scripts %}{% endblock %}
 </body>
 </html>

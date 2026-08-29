@@ -5,6 +5,7 @@ from . import views
 app_name = 'calendar_app'
 
 urlpatterns = [
+    path('calendar/', views.calendar_page, name='calendar-page'),
     path('api/calendar/', views.calendar_api, name='calendar-api'),
     path('api/appointment-types/', views.appointment_types_api, name='types-api'),
     path('api/appointments/', views.appointments_api, name='appointments-api'),

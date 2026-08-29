@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Calendrier · Agency Calendar{% endblock %}
+{% block page_title %}Calendrier{% endblock %}
+{% block extra_head %}
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@7.0.2/skeleton.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@7.0.2/themes/classic/theme.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@7.0.2/themes/classic/palette.css" rel="stylesheet">
+{% endblock %}
+{% block content %}
+  <section class="calendar-heading">
+    <div class="calendar-filters">
+      <select id="filter-member" aria-label="Filtrer par membre">
+        <option value="">Tous les membres</option>
+        {% for member in team_members %}<option value="{{ member.id }}">{{ member.profile.full_name }}</option>{% endfor %}
+      </select>
+      <select id="filter-type" aria-label="Filtrer par type">
+        <option value="">Tous les types</option>
+        {% for type in appointment_types %}<option value="{{ type.id }}">{{ type.name }}</option>{% endfor %}
+      </select>
+      <select id="filter-status" aria-label="Filtrer par statut">
+        <option value="">Tous les statuts</option>
+        <option value="planned">Planifié</option><option value="confirmed">Confirmé</option>
+        <option value="completed">Terminé</option><option value="cancelled">Annulé</option>
+        <option value="postponed">Reporté</option>
+      </select>
+    </div>
+    {% if can_manage_calendar %}<button class="button primary" id="new-appointment" type="button">+ Nouveau rendez-vous</button>{% endif %}
+  </section>
+  <section class="calendar-card" data-can-manage="{{ can_manage_calendar|yesno:'true,false' }}">
+    <div id="calendar"></div>
+  </section>
+
+  <dialog id="event-details" class="modal-card">
+    <button class="modal-close" type="button" data-close aria-label="Fermer">×</button>
+    <p class="eyebrow" id="detail-type"></p><h2 id="detail-title"></h2>
+    <dl class="detail-list" id="detail-list"></dl>
+    <p class="notes-content" id="detail-notes"></p>
+  </dialog>
+
+  {% if can_manage_calendar %}
+    <dialog id="appointment-form" class="modal-card wide-modal">
+      <button class="modal-close" type="button" data-close aria-label="Fermer">×</button>
+      <p class="eyebrow">Planning agence</p><h2>Nouveau rendez-vous</h2>
+      <form id="appointment-create-form" class="entity-form">
+        {% csrf_token %}
+        <div class="form-field wide"><label for="appointment-title">Titre</label><input id="appointment-title" name="title" required maxlength="200"></div>
+        <div class="form-field"><label for="appointment-client">Client</label><select id="appointment-client" name="client_id"><option value="">Événement interne</option>{% for client in clients %}<option value="{{ client.id }}">{{ client.name }}</option>{% endfor %}</select></div>
+        <div class="form-field"><label for="appointment-type">Type</label><select id="appointment-type" name="appointment_type_id" required>{% for type in appointment_types %}<option value="{{ type.id }}">{{ type.name }}</option>{% endfor %}</select></div>
+        <div class="form-field"><label for="appointment-start">Début</label><input id="appointment-start" name="start_at" type="datetime-local" required></div>
+        <div class="form-field"><label for="appointment-end">Fin</label><input id="appointment-end" name="end_at" type="datetime-local" required></div>
+        <div class="form-field"><label for="appointment-status">Statut</label><select id="appointment-status" name="status"><option value="planned">Planifié</option><option value="confirmed">Confirmé</option><option value="completed">Terminé</option><option value="postponed">Reporté</option></select></div>
+        <fieldset class="form-field member-field"><legend>Membres assignés</legend>{% for member in team_members %}<label class="check-option"><input type="checkbox" name="member_ids" value="{{ member.id }}"><span class="member-dot" style="--dot:{{ member.profile.calendar_color }}"></span>{{ member.profile.full_name }}</label>{% endfor %}</fieldset>
+        <div class="form-field wide"><label for="appointment-notes">Notes privées</label><textarea id="appointment-notes" name="notes" rows="4"></textarea></div>
+        <div class="form-actions wide"><button class="button secondary" type="button" data-close>Annuler</button><button class="button primary" type="submit">Créer</button></div>
+      </form>
+    </dialog>
+  {% endif %}
+{% endblock %}
+{% block extra_scripts %}
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@7.0.2/all/global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@7.0.2/themes/classic/global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@7.0.2/locales/fr/global.min.js"></script>
+  <script src="{% static 'js/calendar.js' %}"></script>
+{% endblock %}

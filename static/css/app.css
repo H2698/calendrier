@@ -124,6 +124,23 @@ button, input { font: inherit; }
 .form-field input, .form-field textarea { width: 100%; min-height: 46px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 11px; outline: none; resize: vertical; }
 .form-field input:focus, .form-field textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(91, 77, 247, 0.1); }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 6px; }
+.calendar-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 26px 0 18px; }
+.calendar-filters { display: flex; flex-wrap: wrap; gap: 9px; }
+.calendar-filters select, .form-field select { min-height: 44px; padding: 0 36px 0 12px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
+.calendar-card { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 7px 25px rgba(31,42,68,.04); }
+.fc .fc-button { border: 0 !important; border-radius: 9px !important; box-shadow: none !important; }
+.fc .fc-toolbar-title { font-size: 1.25rem !important; }
+.fc-event { padding: 2px 4px; border-radius: 6px; cursor: pointer; }
+.event-title { margin-left: 4px; font-weight: 700; }
+.event-dots { display: inline-flex; gap: 2px; margin-left: 5px; }
+.event-member-dot, .member-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--dot); }
+.modal-card { width: min(92vw, 560px); padding: 30px; border: 0; border-radius: 20px; box-shadow: var(--shadow); }
+.modal-card.wide-modal { width: min(94vw, 820px); }
+.modal-card::backdrop { background: rgba(21,27,43,.55); backdrop-filter: blur(4px); }
+.modal-close { position: absolute; top: 14px; right: 16px; border: 0; background: transparent; color: var(--muted); font-size: 1.7rem; cursor: pointer; }
+.member-field { grid-row: span 2; padding: 12px; border: 1px solid var(--line); border-radius: 11px; }
+.member-field legend { padding: 0 4px; font-size: .86rem; font-weight: 750; }
+.check-option { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-weight: 500 !important; }
 
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 82px minmax(0, 1fr); }
@@ -147,6 +164,10 @@ button, input { font: inherit; }
   .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
   .kpi-card { padding: 15px; }
   .search-bar { flex-wrap: wrap; }
+  .calendar-heading { align-items: stretch; flex-direction: column; }
+  .calendar-filters select { flex: 1 1 140px; }
+  .calendar-card { padding: 8px; }
+  .fc .fc-toolbar { align-items: flex-start; flex-direction: column; gap: 10px; }
   .search-bar input { flex-basis: 100%; }
   .detail-grid, .entity-form { grid-template-columns: 1fr; }
   .detail-list div { grid-template-columns: 1fr; gap: 5px; }

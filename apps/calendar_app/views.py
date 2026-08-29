@@ -1,10 +1,11 @@
 import json
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_http_methods
@@ -149,6 +150,22 @@ def _appointment_queryset():
             'members',
             queryset=get_user_model().objects.select_related('profile').order_by('profile__full_name'),
         )
+    )
+
+
+@login_required
+def calendar_page(request):
+    can_manage = request.user.profile.can_manage_calendar
+    return render(
+        request,
+        'calendar_app/calendar.html',
+        {
+            'appointment_types': AppointmentType.objects.filter(is_active=True),
+            'team_members': get_user_model().objects.filter(
+                is_active=True, profile__is_active=True
+            ).select_related('profile').order_by('profile__full_name'),
+            'clients': Client.active.all() if can_manage else Client.active.none(),
+        },
     )
 
 

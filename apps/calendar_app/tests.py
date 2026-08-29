@@ -238,3 +238,15 @@ class CalendarBackendTests(TestCase):
             self.client.get(reverse('audit:activity-api')).status_code,
             403,
         )
+
+    def test_calendar_page_hides_management_controls_from_member(self):
+        self._login(self.member)
+        member_response = self.client.get(reverse('calendar_app:calendar-page'))
+        self.assertEqual(member_response.status_code, 200)
+        self.assertNotContains(member_response, 'Nouveau rendez-vous')
+        self.assertNotContains(member_response, 'Private Client')
+
+        self._login(self.admin)
+        admin_response = self.client.get(reverse('calendar_app:calendar-page'))
+        self.assertContains(admin_response, 'Nouveau rendez-vous')
+        self.assertContains(admin_response, 'Private Client')
