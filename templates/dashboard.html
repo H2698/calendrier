@@ -14,15 +14,14 @@
   </section>
 
   <section class="kpi-grid" aria-label="Indicateurs du calendrier">
-    <article class="kpi-card"><span>Aujourd’hui</span><strong>—</strong><small>Rendez-vous</small></article>
-    <article class="kpi-card"><span>Cette semaine</span><strong>—</strong><small>Rendez-vous</small></article>
-    <article class="kpi-card"><span>Shootings</span><strong>—</strong><small>Planifiés</small></article>
-    <article class="kpi-card"><span>À venir</span><strong>—</strong><small>Événements</small></article>
+    <article class="kpi-card"><span>Aujourd’hui</span><strong>{{ kpis.today }}</strong><small>Rendez-vous</small></article>
+    <article class="kpi-card"><span>Cette semaine</span><strong>{{ kpis.week }}</strong><small>Rendez-vous</small></article>
+    <article class="kpi-card"><span>Shootings</span><strong>{{ kpis.shootings }}</strong><small>Planifiés</small></article>
+    <article class="kpi-card"><span>À venir</span><strong>{{ kpis.upcoming }}</strong><small>Événements</small></article>
   </section>
 
-  <section class="placeholder-card">
-    <p class="eyebrow">Phase Auth active</p>
-    <h3>Votre espace est prêt</h3>
-    <p class="muted-text">Les données du calendrier apparaîtront ici après l’implémentation des modules Clients et Rendez-vous.</p>
+  <section class="detail-grid dashboard-lists">
+    <article class="data-card detail-card"><p class="eyebrow">Agenda du jour</p><h3>Aujourd’hui</h3>{% for item in today_appointments %}<a class="agenda-row" href="{% url 'calendar_app:calendar-page' %}"><time>{{ item.start_at|date:"H:i" }}</time><span><strong>{{ item.title }}</strong><small>{{ item.appointment_type.name }} · {{ item.get_status_display }}</small></span></a>{% empty %}<p class="muted-text">Aucun rendez-vous aujourd’hui.</p>{% endfor %}</article>
+    <article class="data-card detail-card"><p class="eyebrow">Prochains rendez-vous</p><h3>À venir</h3>{% for item in upcoming_appointments %}<a class="agenda-row" href="{% url 'calendar_app:calendar-page' %}"><time>{{ item.start_at|date:"d/m H:i" }}</time><span><strong>{{ item.title }}</strong><small>{{ item.appointment_type.name }}</small></span></a>{% empty %}<p class="muted-text">Aucun rendez-vous à venir.</p>{% endfor %}</article>
   </section>
 {% endblock %}

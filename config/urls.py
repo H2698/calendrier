@@ -17,13 +17,14 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
-from apps.accounts.views import dashboard
+from apps.accounts.views import dashboard, dashboard_api
 from apps.core import views
 
 urlpatterns = [
     path('', views.index, name='index'),
     path('health/', views.health, name='health'),
     path('dashboard/', dashboard, name='dashboard'),
+    path('api/dashboard/', dashboard_api, name='dashboard-api'),
     path('', include('apps.accounts.urls')),
     path('', include('apps.audit.urls')),
     path('', include('apps.calendar_app.urls')),
