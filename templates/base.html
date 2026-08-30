@@ -12,11 +12,16 @@
 <body class="{% if user.is_authenticated %}app-shell{% else %}auth-shell{% endif %}">
   {% if user.is_authenticated %}
     <aside class="sidebar">
-      <a class="brand" href="{% url 'dashboard' %}" aria-label="Agency Calendar">
-        <span class="brand-mark">AC</span>
-        <span>Agency Calendar</span>
-      </a>
-      <nav class="main-nav" aria-label="Navigation principale">
+      <div class="sidebar-header">
+        <a class="brand" href="{% url 'dashboard' %}" aria-label="Agency Calendar">
+          <span class="brand-mark">AC</span>
+          <span>Agency Calendar</span>
+        </a>
+        <button class="mobile-menu-toggle" type="button" aria-expanded="false" aria-controls="main-navigation" aria-label="Ouvrir le menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+      <nav class="main-nav" id="main-navigation" aria-label="Navigation principale">
         <a class="nav-link active" href="{% url 'dashboard' %}">Dashboard</a>
         <a class="nav-link" href="{% url 'calendar_app:calendar-page' %}">Calendrier</a>
         {% if can_manage_calendar %}
@@ -69,5 +74,6 @@
     {% block content %}{% endblock %}
   </main>
   {% block extra_scripts %}{% endblock %}
+  {% if user.is_authenticated %}<script src="{% static 'js/app.js' %}" defer></script>{% endif %}
 </body>
 </html>

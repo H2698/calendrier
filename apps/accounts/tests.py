@@ -77,6 +77,16 @@ class AuthenticationTests(TestCase):
         response = self.client.get(reverse('dashboard'))
         self.assertNotContains(response, 'Nouveau rendez-vous')
 
+    def test_authenticated_layout_contains_accessible_mobile_navigation(self):
+        self.client.force_login(
+            self.users[Profile.Role.MEMBER],
+            backend='apps.accounts.backends.EmailBackend',
+        )
+        response = self.client.get(reverse('dashboard'))
+        self.assertContains(response, 'class="mobile-menu-toggle"')
+        self.assertContains(response, 'aria-controls="main-navigation"')
+        self.assertContains(response, 'static/js/app.js')
+
     def test_password_reset_sends_email_for_active_user(self):
         user = self.users[Profile.Role.MEMBER]
 

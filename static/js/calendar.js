@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const autoSyncMilliseconds = Math.max(5, Number(root.dataset.autoSyncSeconds) || 10) * 1000;
   const csrf = document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
   const statusLabels = {planned:"Planifié",confirmed:"Confirmé",completed:"Terminé",cancelled:"Annulé",postponed:"Reporté"};
+  const mobileCalendar = window.innerWidth < 620;
 
   const apiFetch = async (url, options = {}) => {
     const response = await fetch(url, {credentials:"same-origin", headers:{"Content-Type":"application/json","X-CSRFToken":csrf,...options.headers}, ...options});
@@ -46,8 +47,8 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const calendar = new FullCalendar.Calendar(document.getElementById("calendar"), {
-    locale:"fr",initialView:window.innerWidth < 620 ? "listDay" : "dayGridMonth",height:"auto",nowIndicator:true,editable:canManage,eventStartEditable:canManage,eventDurationEditable:canManage,
-    headerToolbar:{left:"prev,next today",center:"title",right:"dayGridMonth,timeGridWeek,timeGridDay"},
+    locale:"fr",initialView:mobileCalendar ? "listDay" : "dayGridMonth",height:"auto",nowIndicator:true,editable:canManage,eventStartEditable:canManage,eventDurationEditable:canManage,
+    headerToolbar:{left:"prev,next today",center:"title",right:mobileCalendar ? "listDay,listWeek" : "dayGridMonth,timeGridWeek,timeGridDay"},
     events:eventSource,eventDrop:moveEvent,eventResize:moveEvent,
     eventContent(arg) { const dots=arg.event.extendedProps.members.map(m=>`<i class="event-member-dot" style="--dot:${m.color}"></i>`).join(""); return {html:`<span class="event-time">${arg.timeText}</span><span class="event-title">${arg.event.title}</span><span class="event-dots">${dots}</span>`}; },
     eventClick(info) { const item=info.event.extendedProps; document.getElementById("detail-type").textContent=item.appointment_type.name; document.getElementById("detail-title").textContent=info.event.title; document.getElementById("detail-list").innerHTML=`<div><dt>Horaire</dt><dd>${info.event.start.toLocaleString()} – ${info.event.end?.toLocaleTimeString() || ""}</dd></div><div><dt>Statut</dt><dd>${statusLabels[item.status] || item.status}</dd></div><div><dt>Membres</dt><dd>${item.members.map(m=>m.name).join(", ") || "—"}</dd></div>${item.client?`<div><dt>Client</dt><dd>${item.client.name}<br>${item.client.phone || ""}</dd></div>`:""}`; document.getElementById("detail-notes").textContent=item.notes || ""; details.showModal(); }
