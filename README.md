@@ -55,9 +55,15 @@ contrôle de santé sur `http://127.0.0.1:8000/health/`.
 | `VAPID_SUBJECT` | Web Push | adresse `mailto:` de contact |
 | `CRON_SECRET` | obligatoire | protège l'endpoint du scheduler |
 | `SECURE_HSTS_SECONDS` | `31536000` | durée HSTS en production |
+| `EMAIL_BACKEND` | mot de passe oublié | utiliser `django.core.mail.backends.smtp.EmailBackend` |
+| `EMAIL_HOST`, `EMAIL_PORT` | SMTP | serveur et port du fournisseur e-mail |
+| `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP | identifiants stockés uniquement côté serveur |
+| `EMAIL_USE_TLS` | généralement `True` | chiffrement SMTP STARTTLS |
 
 Le modèle complet se trouve dans `.env.example`. Ne jamais committer `.env`,
 une URL de base réelle, une clé VAPID privée ou un secret d'automatisation.
+Le flux « mot de passe oublié » devient expéditeur en production lorsque les
+variables SMTP sont renseignées ; le backend console reste réservé au local.
 
 ## Déploiement Vercel + Neon
 

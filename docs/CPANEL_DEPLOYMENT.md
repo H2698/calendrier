@@ -71,6 +71,12 @@ VAPID_PRIVATE_KEY=<clé privée>
 VAPID_SUBJECT=mailto:admin@example.com
 CRON_SECRET=<secret aléatoire>
 SECURE_HSTS_SECONDS=31536000
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=<serveur SMTP>
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=<utilisateur SMTP>
+EMAIL_HOST_PASSWORD=<mot de passe SMTP>
 ```
 
 Redémarrer Passenger après chaque changement d'environnement.
