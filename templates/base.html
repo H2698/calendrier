@@ -8,6 +8,10 @@
   <title>{% block title %}Agency Calendar{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   {% block extra_head %}{% endblock %}
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body class="{% if user.is_authenticated %}app-shell{% else %}auth-shell{% endif %}">
   {% if user.is_authenticated %}
