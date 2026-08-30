@@ -90,7 +90,7 @@ def client_edit_page(request, client_id):
     client = get_object_or_404(Client.active, id=client_id)
     form = ClientForm(request.POST or None, instance=client)
     if request.method == 'POST' and form.is_valid():
-        update_client(client=client, data=form.cleaned_data)
+        update_client(client=client, data=form.cleaned_data, actor=request.user)
         return redirect('clients:detail', client_id=client.id)
     return render(
         request,
@@ -140,7 +140,7 @@ def client_detail_api(request, client_id):
     )
     if request.method == 'PATCH':
         try:
-            update_client(client=client, data=_json_body(request))
+            update_client(client=client, data=_json_body(request), actor=request.user)
         except ValidationError as exc:
             return _validation_error(exc)
     return JsonResponse({'data': _client_payload(client)})
@@ -150,5 +150,5 @@ def client_detail_api(request, client_id):
 @calendar_manager_required
 def client_archive_api(request, client_id):
     client = get_object_or_404(Client.active, id=client_id)
-    archive_client(client=client)
+    archive_client(client=client, actor=request.user)
     return JsonResponse({'data': {'id': str(client.id), 'archived': True}})

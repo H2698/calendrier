@@ -5,6 +5,7 @@ from django.urls import reverse
 
 from apps.accounts.models import Profile
 from apps.accounts.services import create_user_account
+from apps.audit.models import ActivityLog
 
 from .models import Client
 from .services import archive_client, create_client
@@ -89,6 +90,9 @@ class ClientModuleTests(TestCase):
         created = Client.active.get(name='Nouveau Client')
         self.assertEqual(created.email, 'contact@example.com')
         self.assertEqual(created.created_by, self.admin)
+        self.assertTrue(ActivityLog.objects.filter(
+            action='client_created', entity_id=created.id, user=self.admin
+        ).exists())
 
     def test_manager_can_patch_client_through_api(self):
         self._login(self.manager)
@@ -102,6 +106,10 @@ class ClientModuleTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.client_record.refresh_from_db()
         self.assertEqual(self.client_record.phone, '+216 55 555 555')
+        self.assertTrue(ActivityLog.objects.filter(
+            action='client_updated', entity_id=self.client_record.id,
+            user=self.manager,
+        ).exists())
 
     def test_search_and_pagination_metadata(self):
         self._login(self.admin)
@@ -132,6 +140,10 @@ class ClientModuleTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.client_record.refresh_from_db()
         self.assertTrue(self.client_record.is_archived)
+        self.assertTrue(ActivityLog.objects.filter(
+            action='client_archived', entity_id=self.client_record.id,
+            user=self.admin,
+        ).exists())
 
     def test_invalid_json_returns_400(self):
         self._login(self.admin)

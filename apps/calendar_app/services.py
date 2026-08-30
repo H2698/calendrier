@@ -156,14 +156,29 @@ def update_appointment(
         AppointmentMember.objects.bulk_create(
             [AppointmentMember(appointment=appointment, user=member) for member in members]
         )
+    new_values = appointment_snapshot(appointment)
     log_activity(
         actor=actor,
         action=audit_action,
         entity_type='appointment',
         entity_id=appointment.id,
         old_values=old_values,
-        new_values=appointment_snapshot(appointment),
+        new_values=new_values,
     )
+    old_member_ids = {str(member_id) for member_id in old_values['member_ids']}
+    new_member_ids = {str(member_id) for member_id in new_values['member_ids']}
+    for member_id in sorted(new_member_ids - old_member_ids):
+        log_activity(
+            actor=actor, action='appointment_member_assigned',
+            entity_type='appointment', entity_id=appointment.id,
+            new_values={'member_id': member_id},
+        )
+    for member_id in sorted(old_member_ids - new_member_ids):
+        log_activity(
+            actor=actor, action='appointment_member_unassigned',
+            entity_type='appointment', entity_id=appointment.id,
+            old_values={'member_id': member_id},
+        )
     schedule_appointment_notifications(appointment, Notification.Type.UPDATED)
     schedule_appointment_notifications(appointment, Notification.Type.REMINDER)
     return appointment, conflicts

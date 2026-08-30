@@ -3,6 +3,7 @@ import uuid
 from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
+from django.utils import timezone
 
 
 class Profile(models.Model):
@@ -59,3 +60,11 @@ class Profile(models.Model):
 
     def __str__(self):
         return self.full_name
+
+
+class LoginThrottle(models.Model):
+    key = models.CharField(max_length=64, primary_key=True)
+    failures = models.PositiveSmallIntegerField(default=0)
+    window_started = models.DateTimeField(default=timezone.now)
+    blocked_until = models.DateTimeField(null=True, blank=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)

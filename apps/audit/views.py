@@ -15,12 +15,15 @@ ACTION_LABELS = {
     'appointment_updated': 'Rendez-vous modifié',
     'appointment_moved': 'Rendez-vous déplacé',
     'appointment_cancelled': 'Rendez-vous annulé',
+    'appointment_member_assigned': 'Membre affecté',
+    'appointment_member_unassigned': 'Membre désaffecté',
     'client_created': 'Client créé',
     'client_updated': 'Client modifié',
     'client_archived': 'Client archivé',
     'user_created': 'Utilisateur créé',
     'user_updated': 'Utilisateur modifié',
     'user_disabled': 'Utilisateur désactivé',
+    'user_enabled': 'Utilisateur activé',
 }
 
 

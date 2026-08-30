@@ -1,8 +1,65 @@
+from datetime import timedelta
+import hashlib
+import hmac
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
-from .models import Profile
+from apps.audit.services import log_activity
+
+from .models import LoginThrottle, Profile
+
+
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_WINDOW = timedelta(minutes=15)
+
+
+def login_throttle_key(request, email):
+    forwarded_for = request.headers.get('X-Forwarded-For', '')
+    client_ip = forwarded_for.split(',')[0].strip() or request.META.get(
+        'REMOTE_ADDR', 'unknown'
+    )
+    identifier = f'{client_ip}|{email.strip().lower()}'
+    return hmac.new(
+        settings.SECRET_KEY.encode(), identifier.encode(), hashlib.sha256
+    ).hexdigest()
+
+
+def login_blocked_until(key):
+    now = timezone.now()
+    throttle = LoginThrottle.objects.filter(key=key).first()
+    if not throttle:
+        return None
+    if throttle.blocked_until and throttle.blocked_until > now:
+        return throttle.blocked_until
+    if now - throttle.window_started >= LOGIN_WINDOW:
+        LoginThrottle.objects.filter(key=key).delete()
+    return None
+
+
+@transaction.atomic
+def record_login_failure(key):
+    now = timezone.now()
+    throttle, _ = LoginThrottle.objects.select_for_update().get_or_create(
+        key=key,
+        defaults={'window_started': now},
+    )
+    if now - throttle.window_started >= LOGIN_WINDOW:
+        throttle.failures = 0
+        throttle.window_started = now
+        throttle.blocked_until = None
+    throttle.failures += 1
+    if throttle.failures >= LOGIN_FAILURE_LIMIT:
+        throttle.blocked_until = now + LOGIN_WINDOW
+    throttle.save()
+    return throttle.blocked_until
+
+
+def clear_login_failures(key):
+    LoginThrottle.objects.filter(key=key).delete()
 
 
 @transaction.atomic
@@ -14,6 +71,7 @@ def create_user_account(
     role=Profile.Role.MEMBER,
     calendar_color='#2563EB',
     is_active=True,
+    actor=None,
 ):
     normalized_email = get_user_model().objects.normalize_email(email).strip().lower()
     if not normalized_email:
@@ -43,12 +101,33 @@ def create_user_account(
     profile.is_active = is_active
     profile.full_clean()
     profile.save()
+    if actor:
+        log_activity(
+            actor=actor, action='user_created', entity_type='user',
+            entity_id=user.id,
+            new_values={
+                'full_name': profile.full_name,
+                'email': profile.email,
+                'role': profile.role,
+                'calendar_color': profile.calendar_color,
+                'is_active': profile.is_active,
+            },
+        )
     return user
 
 
 @transaction.atomic
-def set_account_active(*, user, is_active):
+def set_account_active(*, user, is_active, actor=None):
+    old_is_active = user.is_active and user.profile.is_active
     user.is_active = is_active
     user.save(update_fields=('is_active',))
     user.profile.is_active = is_active
     user.profile.save(update_fields=('is_active', 'updated_at'))
+    if actor and old_is_active != is_active:
+        log_activity(
+            actor=actor,
+            action='user_enabled' if is_active else 'user_disabled',
+            entity_type='user', entity_id=user.id,
+            old_values={'is_active': old_is_active},
+            new_values={'is_active': is_active},
+        )

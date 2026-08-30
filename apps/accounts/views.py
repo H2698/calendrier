@@ -23,7 +23,14 @@ from .forms import (
 )
 from .models import Profile
 from .permissions import admin_required, calendar_manager_required
-from .services import create_user_account, set_account_active
+from .services import (
+    clear_login_failures,
+    create_user_account,
+    login_blocked_until,
+    login_throttle_key,
+    record_login_failure,
+    set_account_active,
+)
 from apps.calendar_app.models import Appointment
 from apps.calendar_app.models import AppointmentType
 from apps.audit.services import log_activity
@@ -34,6 +41,40 @@ class AgencyLoginView(LoginView):
     authentication_form = EmailAuthenticationForm
     template_name = 'accounts/login.html'
     redirect_authenticated_user = True
+
+    def post(self, request, *args, **kwargs):
+        self.throttle_key = login_throttle_key(
+            request, request.POST.get('username', '')
+        )
+        if login_blocked_until(self.throttle_key):
+            self.request_was_throttled = True
+            form = self.get_form()
+            form.add_error(
+                None,
+                'Trop de tentatives. Réessayez dans 15 minutes.',
+            )
+            response = self.form_invalid(form)
+            response.status_code = 429
+            return response
+        return super().post(request, *args, **kwargs)
+
+    def form_invalid(self, form):
+        response = super().form_invalid(form)
+        if self.request.method == 'POST' and not getattr(
+            self, 'request_was_throttled', False
+        ):
+            key = getattr(
+                self,
+                'throttle_key',
+                login_throttle_key(self.request, self.request.POST.get('username', '')),
+            )
+            if record_login_failure(key):
+                response.status_code = 429
+        return response
+
+    def form_valid(self, form):
+        clear_login_failures(self.throttle_key)
+        return super().form_valid(form)
 
 
 @login_required
@@ -104,7 +145,7 @@ def team_page(request):
         if request.user.profile.role != Profile.Role.ADMIN:
             raise PermissionDenied
         if form.is_valid():
-            create_user_account(**form.cleaned_data)
+            create_user_account(actor=request.user, **form.cleaned_data)
             return redirect('accounts:team')
     members = get_user_model().objects.select_related('profile').order_by('profile__full_name')
     return render(request, 'accounts/team.html', {'team_members': members, 'form': form})
@@ -126,7 +167,13 @@ def team_api(request):
 def team_create_api(request):
     try:
         data = json.loads(request.body or b'{}')
-        user = create_user_account(email=data.get('email', ''), password=data.get('password', ''), full_name=data.get('full_name', ''), role=data.get('role', Profile.Role.MEMBER), calendar_color=data.get('calendar_color', '#2563EB'))
+        user = create_user_account(
+            email=data.get('email', ''), password=data.get('password', ''),
+            full_name=data.get('full_name', ''),
+            role=data.get('role', Profile.Role.MEMBER),
+            calendar_color=data.get('calendar_color', '#2563EB'),
+            actor=request.user,
+        )
     except (json.JSONDecodeError, ValidationError) as exc:
         return JsonResponse({'error': 'validation_error', 'details': exc.message_dict if hasattr(exc, 'message_dict') else str(exc)}, status=400)
     return JsonResponse({'data': _team_payload(user)}, status=201)
@@ -141,12 +188,30 @@ def team_detail_api(request, user_id):
             raise PermissionDenied
         try:
             data = json.loads(request.body or b'{}')
+            old_values = {
+                'full_name': user.profile.full_name,
+                'role': user.profile.role,
+                'calendar_color': user.profile.calendar_color,
+            }
             for field in ('full_name', 'role', 'calendar_color'):
                 if field in data:
                     setattr(user.profile, field, data[field])
             user.profile.full_clean(); user.profile.save()
+            new_values = {
+                'full_name': user.profile.full_name,
+                'role': user.profile.role,
+                'calendar_color': user.profile.calendar_color,
+            }
+            if old_values != new_values:
+                log_activity(
+                    actor=request.user, action='user_updated', entity_type='user',
+                    entity_id=user.id, old_values=old_values,
+                    new_values=new_values,
+                )
             if 'is_active' in data:
-                set_account_active(user=user, is_active=bool(data['is_active']))
+                set_account_active(
+                    user=user, is_active=bool(data['is_active']), actor=request.user
+                )
         except (json.JSONDecodeError, ValidationError) as exc:
             return JsonResponse({'error': 'validation_error', 'details': exc.message_dict if hasattr(exc, 'message_dict') else str(exc)}, status=400)
     return JsonResponse({'data': _team_payload(user)})

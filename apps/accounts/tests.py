@@ -109,6 +109,31 @@ class AuthenticationTests(TestCase):
                 full_name='Duplicate User',
             )
 
+    def test_login_is_rate_limited_after_repeated_failures(self):
+        user = self.users[Profile.Role.MEMBER]
+        for attempt in range(5):
+            response = self.client.post(
+                reverse('accounts:login'),
+                {'username': user.email, 'password': 'wrong-password'},
+                REMOTE_ADDR='203.0.113.10',
+            )
+            self.assertEqual(response.status_code, 429 if attempt == 4 else 200)
+
+        blocked = self.client.post(
+            reverse('accounts:login'),
+            {'username': user.email, 'password': self.password},
+            REMOTE_ADDR='203.0.113.10',
+        )
+        self.assertEqual(blocked.status_code, 429)
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+        different_address = self.client.post(
+            reverse('accounts:login'),
+            {'username': user.email, 'password': self.password},
+            REMOTE_ADDR='203.0.113.11',
+        )
+        self.assertRedirects(different_address, reverse('dashboard'))
+
 
 class PermissionTests(TestCase):
     password = 'A-strong-test-password-482!'
@@ -165,6 +190,7 @@ class TeamManagementTests(TestCase):
 
     def test_admin_creates_and_updates_member(self):
         import json
+        from apps.audit.models import ActivityLog
         self.login(self.admin)
         response = self.client.post(reverse('accounts:team-create-api'), data=json.dumps({'email':'new-member@test.com','password':self.password,'full_name':'New Member','role':'member','calendar_color':'#22C55E'}), content_type='application/json')
         self.assertEqual(response.status_code, 201)
@@ -173,6 +199,15 @@ class TeamManagementTests(TestCase):
         self.assertEqual(patched.status_code, 200)
         self.assertEqual(patched.json()['data']['role'], 'manager')
         self.assertFalse(patched.json()['data']['is_active'])
+        self.assertTrue(ActivityLog.objects.filter(
+            action='user_created', entity_id=user_id, user=self.admin
+        ).exists())
+        self.assertTrue(ActivityLog.objects.filter(
+            action='user_updated', entity_id=user_id, user=self.admin
+        ).exists())
+        self.assertTrue(ActivityLog.objects.filter(
+            action='user_disabled', entity_id=user_id, user=self.admin
+        ).exists())
 
     def test_manager_can_view_but_cannot_create(self):
         import json
