@@ -38,7 +38,7 @@ def dispatch_due_notifications():
         due = list(
             Notification.objects.select_for_update()
             .filter(sent_at__isnull=True, scheduled_for__lte=now)
-            .select_related('appointment', 'user')
+            .select_related('user')
             .order_by('scheduled_for')
         )
         for notification in due:
