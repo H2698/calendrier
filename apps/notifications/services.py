@@ -51,7 +51,11 @@ def dispatch_due_notifications():
         due = list(
             Notification.objects.select_for_update()
             .filter(sent_at__isnull=True, scheduled_for__lte=now)
-            .select_related('user__profile')
+            # Profile is a reverse one-to-one relation, therefore joining it
+            # creates a nullable outer join that PostgreSQL cannot lock with
+            # FOR UPDATE. Prefetch it separately while locking notifications.
+            .select_related('user')
+            .prefetch_related('user__profile', 'user__push_subscriptions')
             .order_by('scheduled_for')
         )
         for notification in due:
