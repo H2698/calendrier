@@ -26,7 +26,7 @@
         <a class="nav-link" href="{% url 'notifications:page' %}">
           Notifications{% if unread_notifications %} <span class="nav-badge">{{ unread_notifications }}</span>{% endif %}
         </a>
-        {% if current_role != 'member' %}<span class="nav-link muted">Historique</span>{% endif %}
+        {% if current_role != 'member' %}<a class="nav-link" href="{% url 'audit:history' %}">Historique</a>{% endif %}
         <span class="nav-link muted">Paramètres</span>
       </nav>
       <div class="sidebar-user">

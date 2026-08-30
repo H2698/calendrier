@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Historique · Agency Calendar{% endblock %}
+{% block page_title %}Historique{% endblock %}
+
+{% block content %}
+  <section class="section-heading">
+    <div>
+      <small class="eyebrow">Audit sécurisé</small>
+      <h2>Historique des modifications</h2>
+      <p class="muted-text">Toutes les actions importantes effectuées par l’équipe.</p>
+    </div>
+  </section>
+
+  <section class="data-card">
+    <form method="get" class="history-filters">
+      <select name="action" aria-label="Action">
+        <option value="">Toutes les actions</option>
+        {% for value, label in action_options %}<option value="{{ value }}"{% if request.GET.action == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <select name="entity_type" aria-label="Type d’entité">
+        <option value="">Toutes les entités</option>
+        {% for value in entity_options %}<option value="{{ value }}"{% if request.GET.entity_type == value %} selected{% endif %}>{{ value|title }}</option>{% endfor %}
+      </select>
+      <select name="user" aria-label="Utilisateur">
+        <option value="">Tous les utilisateurs</option>
+        {% for item in user_options %}<option value="{{ item.id }}"{% if request.GET.user == item.id|stringformat:'s' %} selected{% endif %}>{{ item.profile.full_name }}</option>{% endfor %}
+      </select>
+      <input type="date" name="date_from" value="{{ request.GET.date_from }}" aria-label="Date de début">
+      <input type="date" name="date_to" value="{{ request.GET.date_to }}" aria-label="Date de fin">
+      <button class="button secondary" type="submit">Filtrer</button>
+    </form>
+
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Date</th><th>Utilisateur</th><th>Action</th><th>Entité</th><th>Modifications</th></tr></thead>
+        <tbody>
+          {% for item in activity_page %}
+            <tr>
+              <td>{{ item.created_at|date:'d/m/Y H:i' }}</td>
+              <td>{% if item.user %}{{ item.user.profile.full_name }}{% else %}Système{% endif %}</td>
+              <td>{{ item.action_label }}</td>
+              <td>{{ item.entity_type|title }}<small>{{ item.entity_id }}</small></td>
+              <td>
+                <details class="change-details">
+                  <summary>Voir les changements</summary>
+                  {% if item.old_values %}<pre>Avant : {{ item.old_values }}</pre>{% endif %}
+                  {% if item.new_values %}<pre>Après : {{ item.new_values }}</pre>{% endif %}
+                </details>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td class="empty-state" colspan="5">Aucune activité ne correspond à ces filtres.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if activity_page.paginator.num_pages > 1 %}
+      <nav class="pagination" aria-label="Pagination historique">
+        {% if activity_page.has_previous %}<a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ activity_page.previous_page_number }}">Précédent</a>{% endif %}
+        <span>Page {{ activity_page.number }} / {{ activity_page.paginator.num_pages }}</span>
+        {% if activity_page.has_next %}<a href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={{ activity_page.next_page_number }}">Suivant</a>{% endif %}
+      </nav>
+    {% endif %}
+  </section>
+{% endblock %}
