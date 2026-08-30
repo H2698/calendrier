@@ -87,6 +87,41 @@ class NotificationTests(TestCase):
         )
         self.assertFalse(Notification.objects.filter(user=self.other_member).exists())
 
+    def test_agency_reminder_delay_and_user_preferences_are_respected(self):
+        from apps.core.models import AgencySettings
+
+        agency = AgencySettings.load()
+        agency.reminder_minutes = 45
+        agency.save()
+        self.member.profile.in_app_notifications_enabled = False
+        self.member.profile.browser_notifications_enabled = False
+        self.member.profile.save(
+            update_fields=(
+                'in_app_notifications_enabled',
+                'browser_notifications_enabled',
+                'updated_at',
+            )
+        )
+
+        appointment = self._create_appointment()
+        self.assertFalse(Notification.objects.filter(appointment=appointment).exists())
+
+        self.member.profile.in_app_notifications_enabled = True
+        self.member.profile.save(
+            update_fields=('in_app_notifications_enabled', 'updated_at')
+        )
+        self.start_at += timedelta(days=1)
+        appointment = self._create_appointment()
+        reminder = Notification.objects.get(
+            appointment=appointment,
+            user=self.member,
+            type=Notification.Type.REMINDER,
+        )
+        self.assertEqual(
+            reminder.scheduled_for,
+            appointment.start_at - timedelta(minutes=45),
+        )
+
     def test_update_reschedules_reminder_and_cancel_replaces_it_with_alert(self):
         appointment = self._create_appointment()
         moved_start = self.start_at + timedelta(days=1)
@@ -223,6 +258,8 @@ class NotificationTests(TestCase):
         )
         self.assertEqual(deleted.status_code, 200)
         self.assertFalse(PushSubscription.objects.filter(id=subscription.id).exists())
+        self.member.profile.refresh_from_db()
+        self.assertFalse(self.member.profile.browser_notifications_enabled)
 
     def test_service_worker_is_served_from_root_scope_without_cache(self):
         response = self.client.get(reverse('notifications:service-worker'))
@@ -238,6 +275,8 @@ class NotificationTests(TestCase):
     )
     @patch('apps.notifications.services.webpush')
     def test_due_push_is_sent_once(self, webpush_mock):
+        self.member.profile.browser_notifications_enabled = True
+        self.member.profile.save(update_fields=('browser_notifications_enabled', 'updated_at'))
         self.member.push_subscriptions.create(
             endpoint='https://push.example.test/subscription/reminder',
             p256dh='browser-public-key',

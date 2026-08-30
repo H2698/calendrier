@@ -8,6 +8,7 @@ from .views import AgencyLoginView
 app_name = 'accounts'
 
 urlpatterns = [
+    path('settings/', views.settings_page, name='settings'),
     path('team/', views.team_page, name='team'),
     path('api/team/', views.team_api, name='team-api'),
     path('api/team/create/', views.team_create_api, name='team-create-api'),

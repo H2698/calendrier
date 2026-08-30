@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Paramètres · Agency Calendar{% endblock %}
+{% block page_title %}Paramètres{% endblock %}
+
+{% block content %}
+  <section class="section-heading">
+    <div>
+      <small class="eyebrow">Configuration</small>
+      <h2>Paramètres de l’application</h2>
+      <p class="muted-text">Votre profil, la sécurité et les préférences de l’agence.</p>
+    </div>
+  </section>
+
+  <div class="settings-grid">
+    <section class="data-card settings-card">
+      <small class="eyebrow">Profil</small><h3>Informations personnelles</h3>
+      <form method="post" class="form-stack compact-form">
+        {% csrf_token %}<input type="hidden" name="action" value="profile">
+        {% for field in profile_form %}<p><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</p>{% endfor %}
+        <button class="button primary" type="submit">Enregistrer le profil</button>
+      </form>
+    </section>
+
+    <section class="data-card settings-card">
+      <small class="eyebrow">Sécurité</small><h3>Changer le mot de passe</h3>
+      <form method="post" class="form-stack compact-form">
+        {% csrf_token %}<input type="hidden" name="action" value="password">
+        {% for field in password_form %}<p><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</p>{% endfor %}
+        <button class="button primary" type="submit">Changer le mot de passe</button>
+      </form>
+    </section>
+
+    <section class="data-card settings-card">
+      <small class="eyebrow">Notifications</small><h3>Préférences personnelles</h3>
+      <form method="post" class="form-stack compact-form">
+        {% csrf_token %}<input type="hidden" name="action" value="notifications">
+        {% for field in notification_form %}<label class="toggle-row">{{ field }} <span>{{ field.label }}</span></label>{% endfor %}
+        <p class="muted-text">Notifications navigateur : <strong>{% if user.profile.browser_notifications_enabled %}activées{% else %}désactivées{% endif %}</strong></p>
+        <a href="{% url 'notifications:page' %}">Configurer les notifications navigateur</a>
+        <button class="button primary" type="submit">Enregistrer les préférences</button>
+      </form>
+    </section>
+
+    {% if is_agency_admin %}
+      <section class="data-card settings-card">
+        <small class="eyebrow">Admin</small><h3>Agence</h3>
+        <form method="post" class="form-stack compact-form">
+          {% csrf_token %}<input type="hidden" name="action" value="agency">
+          {% for field in agency_form %}<p><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</p>{% endfor %}
+          <button class="button primary" type="submit">Enregistrer l’agence</button>
+        </form>
+      </section>
+    {% endif %}
+
+    {% if can_manage_calendar %}
+      <section class="data-card settings-card settings-wide">
+        <small class="eyebrow">Calendrier</small><h3>Types de rendez-vous</h3>
+        <form method="post" class="inline-settings-form">
+          {% csrf_token %}<input type="hidden" name="action" value="type_create">
+          {{ appointment_type_form.name }}
+          <button class="button primary" type="submit">Ajouter</button>
+          {% for error in appointment_type_form.name.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        </form>
+        <div class="type-settings-list">
+          {% for item in appointment_types %}
+            <form method="post" class="type-settings-row">
+              {% csrf_token %}<input type="hidden" name="type_id" value="{{ item.id }}">
+              <input class="type-name-input" name="name" value="{{ item.name }}" maxlength="100" required>
+              <span class="status-pill{% if item.is_active %} success{% endif %}">{% if item.is_active %}Actif{% else %}Inactif{% endif %}</span>
+              <button class="button quiet" name="action" value="type_rename" type="submit">Renommer</button>
+              <button class="button quiet" name="action" value="type_toggle" type="submit">{% if item.is_active %}Désactiver{% else %}Activer{% endif %}</button>
+            </form>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
+{% endblock %}

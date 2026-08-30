@@ -2,19 +2,32 @@ from datetime import timedelta
 import json
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.views import LoginView
+from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
 
-from .forms import EmailAuthenticationForm, TeamMemberForm
+from .forms import (
+    AgencySettingsForm,
+    AppointmentTypeSettingsForm,
+    EmailAuthenticationForm,
+    NotificationSettingsForm,
+    ProfileSettingsForm,
+    TeamMemberForm,
+)
 from .models import Profile
 from .permissions import admin_required, calendar_manager_required
 from .services import create_user_account, set_account_active
 from apps.calendar_app.models import Appointment
+from apps.calendar_app.models import AppointmentType
+from apps.audit.services import log_activity
+from apps.core.models import AgencySettings
 
 
 class AgencyLoginView(LoginView):
@@ -137,3 +150,129 @@ def team_detail_api(request, user_id):
         except (json.JSONDecodeError, ValidationError) as exc:
             return JsonResponse({'error': 'validation_error', 'details': exc.message_dict if hasattr(exc, 'message_dict') else str(exc)}, status=400)
     return JsonResponse({'data': _team_payload(user)})
+
+
+@login_required
+def settings_page(request):
+    action = request.POST.get('action', '') if request.method == 'POST' else ''
+    agency_settings = AgencySettings.load()
+    profile_form = ProfileSettingsForm(
+        request.POST if action == 'profile' else None,
+        instance=request.user.profile,
+    )
+    password_form = PasswordChangeForm(
+        request.user,
+        request.POST if action == 'password' else None,
+    )
+    notification_form = NotificationSettingsForm(
+        request.POST if action == 'notifications' else None,
+        instance=request.user.profile,
+    )
+    agency_form = AgencySettingsForm(
+        request.POST if action == 'agency' else None,
+        instance=agency_settings,
+    )
+    appointment_type_form = AppointmentTypeSettingsForm(
+        request.POST if action == 'type_create' else None
+    )
+
+    if request.method == 'POST':
+        if action == 'profile' and profile_form.is_valid():
+            old_values = {
+                'full_name': request.user.profile.full_name,
+                'email': request.user.profile.email,
+                'calendar_color': request.user.profile.calendar_color,
+                'avatar_url': request.user.profile.avatar_url,
+            }
+            profile = profile_form.save()
+            log_activity(
+                actor=request.user, action='profile_updated', entity_type='profile',
+                entity_id=profile.id, old_values=old_values,
+                new_values={key: getattr(profile, key) for key in old_values},
+            )
+            messages.success(request, 'Profil mis à jour.')
+            return redirect('accounts:settings')
+        if action == 'password' and password_form.is_valid():
+            user = password_form.save()
+            update_session_auth_hash(request, user)
+            messages.success(request, 'Mot de passe mis à jour.')
+            return redirect('accounts:settings')
+        if action == 'notifications' and notification_form.is_valid():
+            notification_form.save()
+            messages.success(request, 'Préférences de notification mises à jour.')
+            return redirect('accounts:settings')
+        if action == 'agency':
+            if request.user.profile.role != Profile.Role.ADMIN:
+                raise PermissionDenied
+            if agency_form.is_valid():
+                record = agency_form.save(commit=False)
+                record.updated_by = request.user
+                record.save()
+                log_activity(
+                    actor=request.user, action='agency_settings_updated',
+                    entity_type='agency_settings', entity_id=record.pk,
+                    new_values=agency_form.cleaned_data,
+                )
+                messages.success(request, 'Paramètres de l’agence mis à jour.')
+                return redirect('accounts:settings')
+        if action in {'type_create', 'type_rename', 'type_toggle'}:
+            if not request.user.profile.can_manage_calendar:
+                raise PermissionDenied
+            if action == 'type_create' and appointment_type_form.is_valid():
+                appointment_type = appointment_type_form.save(commit=False)
+                appointment_type.created_by = request.user
+                appointment_type.save()
+                log_activity(
+                    actor=request.user, action='appointment_type_created',
+                    entity_type='appointment_type', entity_id=appointment_type.id,
+                    new_values={'name': appointment_type.name, 'is_active': True},
+                )
+                messages.success(request, 'Type de rendez-vous ajouté.')
+                return redirect('accounts:settings')
+            if action == 'type_rename':
+                appointment_type = get_object_or_404(
+                    AppointmentType, id=request.POST.get('type_id')
+                )
+                edit_form = AppointmentTypeSettingsForm(
+                    request.POST, instance=appointment_type
+                )
+                if edit_form.is_valid():
+                    appointment_type = edit_form.save()
+                    log_activity(
+                        actor=request.user, action='appointment_type_updated',
+                        entity_type='appointment_type', entity_id=appointment_type.id,
+                        new_values={
+                            'name': appointment_type.name,
+                            'is_active': appointment_type.is_active,
+                        },
+                    )
+                    messages.success(request, 'Type de rendez-vous renommé.')
+                    return redirect('accounts:settings')
+                appointment_type_form = edit_form
+            if action == 'type_toggle':
+                appointment_type = get_object_or_404(
+                    AppointmentType, id=request.POST.get('type_id')
+                )
+                appointment_type.is_active = not appointment_type.is_active
+                appointment_type.save(update_fields=('is_active', 'updated_at'))
+                log_activity(
+                    actor=request.user, action='appointment_type_updated',
+                    entity_type='appointment_type', entity_id=appointment_type.id,
+                    new_values={'name': appointment_type.name, 'is_active': appointment_type.is_active},
+                )
+                messages.success(request, 'État du type mis à jour.')
+                return redirect('accounts:settings')
+
+    return render(
+        request,
+        'accounts/settings.html',
+        {
+            'profile_form': profile_form,
+            'password_form': password_form,
+            'notification_form': notification_form,
+            'agency_form': agency_form,
+            'appointment_type_form': appointment_type_form,
+            'appointment_types': AppointmentType.objects.all(),
+            'agency_settings': agency_settings,
+        },
+    )

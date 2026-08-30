@@ -174,3 +174,103 @@ class TeamManagementTests(TestCase):
         self.login(self.member)
         self.assertEqual(self.client.get(reverse('accounts:team')).status_code, 403)
         self.assertEqual(self.client.get(reverse('accounts:team-api')).status_code, 403)
+
+
+class SettingsTests(TestCase):
+    password = 'A-strong-test-password-482!'
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = create_user_account(
+            email='settings-admin@test.com', password=cls.password,
+            full_name='Settings Admin', role=Profile.Role.ADMIN,
+        )
+        cls.manager = create_user_account(
+            email='settings-manager@test.com', password=cls.password,
+            full_name='Settings Manager', role=Profile.Role.MANAGER,
+        )
+        cls.member = create_user_account(
+            email='settings-member@test.com', password=cls.password,
+            full_name='Settings Member', role=Profile.Role.MEMBER,
+        )
+
+    def login(self, user):
+        self.client.force_login(user, backend='apps.accounts.backends.EmailBackend')
+
+    def test_every_role_can_update_own_profile_and_notification_preference(self):
+        for user in (self.admin, self.manager, self.member):
+            with self.subTest(role=user.profile.role):
+                self.login(user)
+                response = self.client.post(
+                    reverse('accounts:settings'),
+                    {
+                        'action': 'profile', 'full_name': f'Updated {user.id}',
+                        'email': user.profile.email, 'calendar_color': '#112233',
+                        'avatar_url': '',
+                    },
+                )
+                self.assertRedirects(response, reverse('accounts:settings'))
+                user.profile.refresh_from_db()
+                self.assertEqual(user.profile.calendar_color, '#112233')
+
+                response = self.client.post(
+                    reverse('accounts:settings'),
+                    {'action': 'notifications'},
+                )
+                self.assertRedirects(response, reverse('accounts:settings'))
+                user.profile.refresh_from_db()
+                self.assertFalse(user.profile.in_app_notifications_enabled)
+
+    def test_admin_updates_agency_and_manager_manages_types(self):
+        from apps.calendar_app.models import AppointmentType
+        from apps.core.models import AgencySettings
+
+        self.login(self.admin)
+        response = self.client.post(
+            reverse('accounts:settings'),
+            {
+                'action': 'agency', 'agency_name': 'Digital Agency', 'logo_url': '',
+                'timezone': 'Africa/Tunis', 'reminder_minutes': 45,
+            },
+        )
+        self.assertRedirects(response, reverse('accounts:settings'))
+        self.assertEqual(AgencySettings.load().reminder_minutes, 45)
+
+        self.login(self.manager)
+        response = self.client.post(
+            reverse('accounts:settings'),
+            {'action': 'type_create', 'name': 'Workshop'},
+        )
+        self.assertRedirects(response, reverse('accounts:settings'))
+        appointment_type = AppointmentType.objects.get(name='Workshop')
+        renamed = self.client.post(
+            reverse('accounts:settings'),
+            {'action': 'type_rename', 'type_id': appointment_type.id, 'name': 'Atelier'},
+        )
+        self.assertRedirects(renamed, reverse('accounts:settings'))
+        appointment_type.refresh_from_db()
+        self.assertEqual(appointment_type.name, 'Atelier')
+
+        toggled = self.client.post(
+            reverse('accounts:settings'),
+            {'action': 'type_toggle', 'type_id': appointment_type.id},
+        )
+        self.assertRedirects(toggled, reverse('accounts:settings'))
+        appointment_type.refresh_from_db()
+        self.assertFalse(appointment_type.is_active)
+
+    def test_member_cannot_change_agency_or_appointment_types(self):
+        self.login(self.member)
+        agency = self.client.post(
+            reverse('accounts:settings'),
+            {
+                'action': 'agency', 'agency_name': 'Forbidden', 'logo_url': '',
+                'timezone': 'Africa/Tunis', 'reminder_minutes': 30,
+            },
+        )
+        appointment_type = self.client.post(
+            reverse('accounts:settings'),
+            {'action': 'type_create', 'name': 'Forbidden Type'},
+        )
+        self.assertEqual(agency.status_code, 403)
+        self.assertEqual(appointment_type.status_code, 403)

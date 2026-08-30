@@ -3,6 +3,7 @@ import json
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from pywebpush import WebPushException, webpush
 
@@ -11,11 +12,23 @@ from .models import Notification
 
 @transaction.atomic
 def schedule_appointment_notifications(appointment, notification_type=Notification.Type.CREATED):
-    members = list(appointment.members.all())
+    members = list(
+        appointment.members.filter(
+            Q(profile__in_app_notifications_enabled=True)
+            | Q(profile__browser_notifications_enabled=True)
+        )
+    )
     if notification_type == Notification.Type.REMINDER:
         Notification.objects.filter(appointment=appointment, type=notification_type, sent_at__isnull=True).delete()
     for member in members:
-        scheduled = appointment.start_at - timedelta(minutes=30) if notification_type == Notification.Type.REMINDER else timezone.now()
+        if notification_type == Notification.Type.REMINDER:
+            from apps.core.models import AgencySettings
+
+            scheduled = appointment.start_at - timedelta(
+                minutes=AgencySettings.load().reminder_minutes
+            )
+        else:
+            scheduled = timezone.now()
         Notification.objects.update_or_create(
             user=member, appointment=appointment, type=notification_type,
             defaults={'title': appointment.title, 'message': _message(appointment, notification_type), 'scheduled_for': scheduled, 'sent_at': None, 'is_read': False},
@@ -38,7 +51,7 @@ def dispatch_due_notifications():
         due = list(
             Notification.objects.select_for_update()
             .filter(sent_at__isnull=True, scheduled_for__lte=now)
-            .select_related('user')
+            .select_related('user__profile')
             .order_by('scheduled_for')
         )
         for notification in due:
@@ -49,6 +62,8 @@ def dispatch_due_notifications():
 
 
 def send_web_push(notification):
+    if not notification.user.profile.browser_notifications_enabled:
+        return {'sent': 0, 'failed': 0, 'stale': 0, 'configured': True, 'enabled': False}
     if not settings.VAPID_PRIVATE_KEY or not settings.VAPID_PUBLIC_KEY:
         return {'sent': 0, 'failed': 0, 'stale': 0, 'configured': False}
 

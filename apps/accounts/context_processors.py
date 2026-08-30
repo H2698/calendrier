@@ -6,7 +6,10 @@ from .permissions import user_role
 def account_context(request):
     role = user_role(request.user)
     unread_notifications = 0
-    if request.user.is_authenticated:
+    if (
+        request.user.is_authenticated
+        and request.user.profile.in_app_notifications_enabled
+    ):
         unread_notifications = request.user.notifications.filter(
             is_read=False,
             scheduled_for__lte=timezone.now(),

@@ -30,6 +30,8 @@ def payload(item):
 
 
 def visible_notifications(user):
+    if not user.profile.in_app_notifications_enabled:
+        return user.notifications.none()
     return user.notifications.filter(scheduled_for__lte=timezone.now())
 
 
@@ -93,6 +95,11 @@ def push_subscription_api(request):
     endpoint = data.get('endpoint', '') if isinstance(data, dict) else ''
     if request.method == 'DELETE':
         deleted, _ = request.user.push_subscriptions.filter(endpoint=endpoint).delete()
+        if not request.user.push_subscriptions.exists():
+            request.user.profile.browser_notifications_enabled = False
+            request.user.profile.save(
+                update_fields=('browser_notifications_enabled', 'updated_at')
+            )
         return JsonResponse({'ok': True, 'deleted': bool(deleted)})
 
     keys = data.get('keys', {}) if isinstance(data, dict) else {}
@@ -112,6 +119,9 @@ def push_subscription_api(request):
             'user_agent': request.headers.get('User-Agent', '')[:1000],
         },
     )
+    if not request.user.profile.browser_notifications_enabled:
+        request.user.profile.browser_notifications_enabled = True
+        request.user.profile.save(update_fields=('browser_notifications_enabled', 'updated_at'))
     return JsonResponse(
         {'ok': True, 'created': created, 'id': str(subscription.id)},
         status=201 if created else 200,

@@ -36,6 +36,8 @@ class Profile(models.Model):
         ],
     )
     avatar_url = models.URLField(blank=True)
+    in_app_notifications_enabled = models.BooleanField(default=True)
+    browser_notifications_enabled = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -27,7 +27,7 @@
           Notifications{% if unread_notifications %} <span class="nav-badge">{{ unread_notifications }}</span>{% endif %}
         </a>
         {% if current_role != 'member' %}<a class="nav-link" href="{% url 'audit:history' %}">Historique</a>{% endif %}
-        <span class="nav-link muted">Paramètres</span>
+        <a class="nav-link" href="{% url 'accounts:settings' %}">Paramètres</a>
       </nav>
       <div class="sidebar-user">
         <span class="avatar" style="--avatar-color: {{ user.profile.calendar_color }}">
