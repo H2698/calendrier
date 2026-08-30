@@ -99,6 +99,7 @@ button, input { font: inherit; }
 .search-bar input { min-width: 0; flex: 1; min-height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 11px; outline: none; }
 .search-bar input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(91, 77, 247, 0.1); }
 .button.quiet { color: var(--muted); background: transparent; }
+.button.danger { color: #fff; background: var(--danger); }
 .table-wrap { overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th, .data-table td { padding: 16px 18px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }

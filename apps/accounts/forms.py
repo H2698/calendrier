@@ -48,6 +48,16 @@ class TeamMemberForm(forms.Form):
     calendar_color = forms.RegexField(label='Couleur calendrier', regex=r'^#[0-9A-Fa-f]{6}$', initial='#2563EB')
 
 
+class TeamMemberEditForm(forms.Form):
+    full_name = forms.CharField(label='Nom complet', max_length=150)
+    email = forms.EmailField(label='Adresse e-mail')
+    role = forms.ChoiceField(label='Rôle', choices=Profile.Role.choices)
+    calendar_color = forms.RegexField(
+        label='Couleur calendrier', regex=r'^#[0-9A-Fa-f]{6}$'
+    )
+    is_active = forms.BooleanField(label='Compte actif', required=False)
+
+
 class ProfileSettingsForm(forms.ModelForm):
     email = forms.EmailField(label='Adresse e-mail', required=True, max_length=150)
 

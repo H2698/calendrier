@@ -259,6 +259,23 @@ class CalendarBackendTests(TestCase):
             old_values__member_id=str(self.member.id),
         ).exists())
 
+    def test_status_change_creates_precise_audit_entry(self):
+        response = self._api_create()
+        appointment_id = response.json()['data']['id']
+
+        response = self.client.patch(
+            reverse('calendar_app:appointment-detail-api', args=(appointment_id,)),
+            data=json.dumps({'status': Appointment.Status.CONFIRMED}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(ActivityLog.objects.filter(
+            entity_id=appointment_id, action='appointment_status_changed',
+            old_values__status=Appointment.Status.PLANNED,
+            new_values__status=Appointment.Status.CONFIRMED,
+        ).exists())
+
     def test_calendar_page_hides_management_controls_from_member(self):
         self._login(self.member)
         member_response = self.client.get(reverse('calendar_app:calendar-page'))
@@ -271,6 +288,8 @@ class CalendarBackendTests(TestCase):
         admin_response = self.client.get(reverse('calendar_app:calendar-page'))
         self.assertContains(admin_response, 'Nouveau rendez-vous')
         self.assertContains(admin_response, 'Private Client')
+        self.assertContains(admin_response, 'Modifier')
+        self.assertContains(admin_response, 'Créer un client rapide')
 
     def test_calendar_sync_payload_keeps_unassigned_member_data_private(self):
         self._api_create()

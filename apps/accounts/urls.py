@@ -10,6 +10,7 @@ app_name = 'accounts'
 urlpatterns = [
     path('settings/', views.settings_page, name='settings'),
     path('team/', views.team_page, name='team'),
+    path('team/<int:user_id>/', views.team_member_page, name='team-member'),
     path('api/team/', views.team_api, name='team-api'),
     path('api/team/create/', views.team_create_api, name='team-create-api'),
     path('api/team/<int:user_id>/', views.team_detail_api, name='team-detail-api'),

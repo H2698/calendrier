@@ -3,12 +3,14 @@ import json
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import OuterRef, Q, Subquery
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_http_methods
 
 from apps.accounts.permissions import calendar_manager_required
+from apps.calendar_app.models import Appointment
 
 from .forms import ClientForm
 from .models import Client
@@ -51,7 +53,22 @@ def _validation_error(exc):
 @calendar_manager_required
 def client_list_page(request):
     search = request.GET.get('q', '').strip()
-    queryset = Client.active.select_related('created_by', 'created_by__profile')
+    now = timezone.now()
+    active_appointments = Appointment.objects.filter(
+        client=OuterRef('pk'), deleted_at__isnull=True,
+    ).exclude(status=Appointment.Status.CANCELLED)
+    queryset = Client.active.select_related(
+        'created_by', 'created_by__profile'
+    ).annotate(
+        next_appointment_at=Subquery(
+            active_appointments.filter(start_at__gte=now)
+            .order_by('start_at').values('start_at')[:1]
+        ),
+        last_appointment_at=Subquery(
+            active_appointments.filter(start_at__lt=now)
+            .order_by('-start_at').values('start_at')[:1]
+        ),
+    )
     if search:
         queryset = queryset.filter(
             Q(name__icontains=search)
@@ -71,7 +88,23 @@ def client_list_page(request):
 @calendar_manager_required
 def client_detail_page(request, client_id):
     client = get_object_or_404(Client.active, id=client_id)
-    return render(request, 'clients/detail.html', {'client': client})
+    appointments = client.appointments.filter(
+        deleted_at__isnull=True,
+    ).select_related('appointment_type').prefetch_related(
+        'members__profile'
+    ).order_by('-start_at')
+    appointment_page = Paginator(appointments, 20).get_page(request.GET.get('page'))
+    next_appointment = appointments.exclude(
+        status=Appointment.Status.CANCELLED
+    ).filter(start_at__gte=timezone.now()).order_by('start_at').first()
+    return render(
+        request, 'clients/detail.html',
+        {
+            'client': client,
+            'appointment_page': appointment_page,
+            'next_appointment': next_appointment,
+        },
+    )
 
 
 @login_required

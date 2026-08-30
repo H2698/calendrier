@@ -215,6 +215,39 @@ class TeamManagementTests(TestCase):
         self.assertEqual(self.client.get(reverse('accounts:team-api')).status_code, 200)
         self.assertEqual(self.client.post(reverse('accounts:team-create-api'), data=json.dumps({'email':'x@test.com'}), content_type='application/json').status_code, 403)
 
+    def test_member_profile_page_is_viewable_by_manager_and_editable_by_admin(self):
+        self.login(self.manager)
+        page = self.client.get(
+            reverse('accounts:team-member', args=(self.member.id,))
+        )
+        self.assertEqual(page.status_code, 200)
+        self.assertNotContains(page, 'Enregistrer')
+
+        self.login(self.admin)
+        response = self.client.post(
+            reverse('accounts:team-member', args=(self.member.id,)),
+            {
+                'full_name': 'Member Updated', 'email': self.member.email,
+                'role': Profile.Role.MANAGER, 'calendar_color': '#334455',
+                'is_active': 'on',
+            },
+        )
+        self.assertRedirects(
+            response, reverse('accounts:team-member', args=(self.member.id,))
+        )
+        self.member.profile.refresh_from_db()
+        self.assertEqual(self.member.profile.role, Profile.Role.MANAGER)
+        self.assertEqual(self.member.profile.calendar_color, '#334455')
+
+    def test_member_cannot_open_member_profile(self):
+        self.login(self.member)
+        self.assertEqual(
+            self.client.get(
+                reverse('accounts:team-member', args=(self.member.id,))
+            ).status_code,
+            403,
+        )
+
     def test_member_cannot_access_team(self):
         self.login(self.member)
         self.assertEqual(self.client.get(reverse('accounts:team')).status_code, 403)

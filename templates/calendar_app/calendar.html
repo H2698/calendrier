@@ -39,16 +39,17 @@
     <p class="eyebrow" id="detail-type"></p><h2 id="detail-title"></h2>
     <dl class="detail-list" id="detail-list"></dl>
     <p class="notes-content" id="detail-notes"></p>
+    {% if can_manage_calendar %}<div class="form-actions"><button class="button secondary" id="edit-appointment" type="button">Modifier</button><button class="button danger" id="cancel-appointment" type="button">Annuler le rendez-vous</button></div>{% endif %}
   </dialog>
 
   {% if can_manage_calendar %}
     <dialog id="appointment-form" class="modal-card wide-modal">
       <button class="modal-close" type="button" data-close aria-label="Fermer">×</button>
-      <p class="eyebrow">Planning agence</p><h2>Nouveau rendez-vous</h2>
+      <p class="eyebrow">Planning agence</p><h2 id="appointment-form-title">Nouveau rendez-vous</h2>
       <form id="appointment-create-form" class="entity-form">
         {% csrf_token %}
         <div class="form-field wide"><label for="appointment-title">Titre</label><input id="appointment-title" name="title" required maxlength="200"></div>
-        <div class="form-field"><label for="appointment-client">Client</label><select id="appointment-client" name="client_id"><option value="">Événement interne</option>{% for client in clients %}<option value="{{ client.id }}">{{ client.name }}</option>{% endfor %}</select></div>
+        <div class="form-field"><label for="appointment-client">Client</label><select id="appointment-client" name="client_id"><option value="">Événement interne</option>{% for client in clients %}<option value="{{ client.id }}">{{ client.name }}</option>{% endfor %}</select><button class="button quiet" id="quick-client" type="button">+ Créer un client rapide</button></div>
         <div class="form-field"><label for="appointment-type">Type</label><select id="appointment-type" name="appointment_type_id" required>{% for type in appointment_types %}<option value="{{ type.id }}">{{ type.name }}</option>{% endfor %}</select></div>
         <div class="form-field"><label for="appointment-start">Début</label><input id="appointment-start" name="start_at" type="datetime-local" required></div>
         <div class="form-field"><label for="appointment-end">Fin</label><input id="appointment-end" name="end_at" type="datetime-local" required></div>
@@ -56,8 +57,9 @@
         <div class="form-field"><label for="appointment-recurrence">Récurrence</label><select id="appointment-recurrence" name="recurrence_frequency"><option value="">Aucune</option><option value="daily">Chaque jour</option><option value="weekly">Chaque semaine</option><option value="monthly">Chaque mois</option></select></div>
         <div class="form-field"><label for="recurrence-end">Fin de récurrence</label><input id="recurrence-end" name="recurrence_end_date" type="date"></div>
         <fieldset class="form-field member-field"><legend>Membres assignés</legend>{% for member in team_members %}<label class="check-option"><input type="checkbox" name="member_ids" value="{{ member.id }}"><span class="member-dot" style="--dot:{{ member.profile.calendar_color }}"></span>{{ member.profile.full_name }}</label>{% endfor %}</fieldset>
+        <div class="form-field wide"><label for="appointment-description">Description</label><textarea id="appointment-description" name="description" rows="3"></textarea></div>
         <div class="form-field wide"><label for="appointment-notes">Notes privées</label><textarea id="appointment-notes" name="notes" rows="4"></textarea></div>
-        <div class="form-actions wide"><button class="button secondary" type="button" data-close>Annuler</button><button class="button primary" type="submit">Créer</button></div>
+        <div class="form-actions wide"><button class="button secondary" type="button" data-close>Fermer</button><button class="button primary" id="appointment-submit" type="submit">Créer</button></div>
       </form>
     </dialog>
   {% endif %}

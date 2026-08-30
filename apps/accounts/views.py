@@ -19,6 +19,7 @@ from .forms import (
     EmailAuthenticationForm,
     NotificationSettingsForm,
     ProfileSettingsForm,
+    TeamMemberEditForm,
     TeamMemberForm,
 )
 from .models import Profile
@@ -29,7 +30,7 @@ from .services import (
     login_blocked_until,
     login_throttle_key,
     record_login_failure,
-    set_account_active,
+    update_user_account,
 )
 from apps.calendar_app.models import Appointment
 from apps.calendar_app.models import AppointmentType
@@ -151,6 +152,46 @@ def team_page(request):
     return render(request, 'accounts/team.html', {'team_members': members, 'form': form})
 
 
+@login_required
+@calendar_manager_required
+def team_member_page(request, user_id):
+    member = get_object_or_404(
+        get_user_model().objects.select_related('profile'), id=user_id
+    )
+    initial = {
+        'full_name': member.profile.full_name,
+        'email': member.profile.email,
+        'role': member.profile.role,
+        'calendar_color': member.profile.calendar_color,
+        'is_active': member.is_active and member.profile.is_active,
+    }
+    form = TeamMemberEditForm(request.POST or None, initial=initial)
+    if request.method == 'POST':
+        if request.user.profile.role != Profile.Role.ADMIN:
+            raise PermissionDenied
+        if form.is_valid():
+            try:
+                update_user_account(
+                    actor=request.user, user=member, data=form.cleaned_data
+                )
+            except ValidationError as exc:
+                for field, errors in exc.message_dict.items():
+                    for error in errors:
+                        form.add_error(field, error)
+            else:
+                messages.success(request, 'Membre mis à jour.')
+                return redirect('accounts:team-member', user_id=member.id)
+    appointments = member.appointments.filter(
+        deleted_at__isnull=True, start_at__gte=timezone.now()
+    ).exclude(status=Appointment.Status.CANCELLED).select_related(
+        'appointment_type', 'client'
+    ).order_by('start_at')[:10]
+    return render(
+        request, 'accounts/team_member.html',
+        {'member': member, 'form': form, 'upcoming_appointments': appointments},
+    )
+
+
 def _team_payload(user):
     return {'id': user.id, 'full_name': user.profile.full_name, 'email': user.profile.email, 'role': user.profile.role, 'calendar_color': user.profile.calendar_color, 'is_active': user.is_active and user.profile.is_active}
 
@@ -167,6 +208,8 @@ def team_api(request):
 def team_create_api(request):
     try:
         data = json.loads(request.body or b'{}')
+        if not isinstance(data, dict):
+            raise ValidationError('Le corps JSON doit être un objet.')
         user = create_user_account(
             email=data.get('email', ''), password=data.get('password', ''),
             full_name=data.get('full_name', ''),
@@ -188,30 +231,9 @@ def team_detail_api(request, user_id):
             raise PermissionDenied
         try:
             data = json.loads(request.body or b'{}')
-            old_values = {
-                'full_name': user.profile.full_name,
-                'role': user.profile.role,
-                'calendar_color': user.profile.calendar_color,
-            }
-            for field in ('full_name', 'role', 'calendar_color'):
-                if field in data:
-                    setattr(user.profile, field, data[field])
-            user.profile.full_clean(); user.profile.save()
-            new_values = {
-                'full_name': user.profile.full_name,
-                'role': user.profile.role,
-                'calendar_color': user.profile.calendar_color,
-            }
-            if old_values != new_values:
-                log_activity(
-                    actor=request.user, action='user_updated', entity_type='user',
-                    entity_id=user.id, old_values=old_values,
-                    new_values=new_values,
-                )
-            if 'is_active' in data:
-                set_account_active(
-                    user=user, is_active=bool(data['is_active']), actor=request.user
-                )
+            if not isinstance(data, dict):
+                raise ValidationError('Le corps JSON doit être un objet.')
+            update_user_account(actor=request.user, user=user, data=data)
         except (json.JSONDecodeError, ValidationError) as exc:
             return JsonResponse({'error': 'validation_error', 'details': exc.message_dict if hasattr(exc, 'message_dict') else str(exc)}, status=400)
     return JsonResponse({'data': _team_payload(user)})

@@ -131,3 +131,80 @@ def set_account_active(*, user, is_active, actor=None):
             old_values={'is_active': old_is_active},
             new_values={'is_active': is_active},
         )
+
+
+@transaction.atomic
+def update_user_account(*, actor, user, data):
+    if not isinstance(data, dict):
+        raise ValidationError('Les données utilisateur doivent être un objet.')
+    profile = user.profile
+    old_values = {
+        'full_name': profile.full_name,
+        'email': profile.email,
+        'role': profile.role,
+        'calendar_color': profile.calendar_color,
+        'is_active': user.is_active and profile.is_active,
+    }
+    if user == actor and data.get('is_active') is False:
+        raise ValidationError(
+            {'is_active': 'Vous ne pouvez pas désactiver votre propre compte.'}
+        )
+
+    raw_email = data.get('email', profile.email)
+    if not isinstance(raw_email, str) or not raw_email.strip():
+        raise ValidationError({'email': 'Une adresse e-mail est obligatoire.'})
+    if 'is_active' in data and not isinstance(data['is_active'], bool):
+        raise ValidationError({'is_active': 'L’état du compte doit être un booléen.'})
+    email = raw_email.strip().lower()
+    if get_user_model().objects.exclude(pk=user.pk).filter(
+        email__iexact=email
+    ).exists():
+        raise ValidationError({'email': 'Cette adresse e-mail existe déjà.'})
+    for field in ('full_name', 'role', 'calendar_color'):
+        if field in data:
+            setattr(profile, field, data[field])
+    profile.email = email
+    desired_active = bool(data.get('is_active', old_values['is_active']))
+    profile.is_active = desired_active
+    profile.full_clean()
+    profile.save()
+
+    name_parts = profile.full_name.strip().split(maxsplit=1)
+    user.username = email
+    user.email = email
+    user.first_name = name_parts[0] if name_parts else ''
+    user.last_name = name_parts[1] if len(name_parts) > 1 else ''
+    user.is_staff = profile.role == Profile.Role.ADMIN
+    user.is_active = desired_active
+    user.save(update_fields=(
+        'username', 'email', 'first_name', 'last_name', 'is_staff', 'is_active'
+    ))
+
+    new_values = {
+        'full_name': profile.full_name,
+        'email': profile.email,
+        'role': profile.role,
+        'calendar_color': profile.calendar_color,
+        'is_active': desired_active,
+    }
+    if {**old_values, 'is_active': desired_active} != new_values:
+        log_activity(
+            actor=actor, action='user_updated', entity_type='user',
+            entity_id=user.id, old_values=old_values, new_values=new_values,
+        )
+    if old_values['role'] != new_values['role']:
+        log_activity(
+            actor=actor, action='user_role_changed', entity_type='user',
+            entity_id=user.id,
+            old_values={'role': old_values['role']},
+            new_values={'role': new_values['role']},
+        )
+    if old_values['is_active'] != desired_active:
+        log_activity(
+            actor=actor,
+            action='user_enabled' if desired_active else 'user_disabled',
+            entity_type='user', entity_id=user.id,
+            old_values={'is_active': old_values['is_active']},
+            new_values={'is_active': desired_active},
+        )
+    return user

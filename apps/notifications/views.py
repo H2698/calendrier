@@ -4,6 +4,7 @@ import hmac
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.core.validators import URLValidator
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -41,11 +42,13 @@ def notifications_page(request):
     unread_only = request.GET.get('view') == 'unread'
     if unread_only:
         queryset = queryset.filter(is_read=False)
+    notification_page = Paginator(queryset, 25).get_page(request.GET.get('page'))
     return render(
         request,
         'notifications/notifications.html',
         {
-            'notifications': queryset[:100],
+            'notifications': notification_page.object_list,
+            'notification_page': notification_page,
             'unread_only': unread_only,
             'push_public_key': settings.VAPID_PUBLIC_KEY,
             'push_configured': bool(settings.VAPID_PUBLIC_KEY and settings.VAPID_PRIVATE_KEY),
@@ -135,10 +138,19 @@ def notifications_api(request):
     queryset = visible_notifications(request.user)
     if request.GET.get('unread') == 'true':
         queryset = queryset.filter(is_read=False)
+    paginator = Paginator(queryset, 50)
+    page = paginator.get_page(request.GET.get('page'))
     return JsonResponse(
         {
-            'data': [payload(item) for item in queryset[:100]],
+            'data': [payload(item) for item in page.object_list],
             'unread_count': visible_notifications(request.user).filter(is_read=False).count(),
+            'pagination': {
+                'page': page.number,
+                'pages': paginator.num_pages,
+                'count': paginator.count,
+                'has_next': page.has_next(),
+                'has_previous': page.has_previous(),
+            },
         }
     )
 

@@ -29,8 +29,8 @@
               <td><a class="client-name" href="{% url 'clients:detail' client.id %}">{{ client.name }}</a><small>{{ client.email|default:"—" }}</small></td>
               <td>{{ client.company_name|default:"—" }}</td>
               <td>{{ client.phone|default:"—" }}</td>
-              <td><span class="table-placeholder">À connecter</span></td>
-              <td><span class="table-placeholder">À connecter</span></td>
+              <td>{% if client.next_appointment_at %}{{ client.next_appointment_at|date:"d/m/Y H:i" }}{% else %}<span class="table-placeholder">—</span>{% endif %}</td>
+              <td>{% if client.last_appointment_at %}{{ client.last_appointment_at|date:"d/m/Y H:i" }}{% else %}<span class="table-placeholder">—</span>{% endif %}</td>
             </tr>
           {% empty %}
             <tr><td colspan="5" class="empty-state">Aucun client trouvé.</td></tr>

@@ -35,6 +35,14 @@
     {% endfor %}
   </section>
 
+  {% if notification_page.paginator.num_pages > 1 %}
+    <nav class="pagination" aria-label="Pagination des notifications">
+      {% if notification_page.has_previous %}<a href="?{% if unread_only %}view=unread&amp;{% endif %}page={{ notification_page.previous_page_number }}">Précédent</a>{% endif %}
+      <span>Page {{ notification_page.number }} sur {{ notification_page.paginator.num_pages }}</span>
+      {% if notification_page.has_next %}<a href="?{% if unread_only %}view=unread&amp;{% endif %}page={{ notification_page.next_page_number }}">Suivant</a>{% endif %}
+    </nav>
+  {% endif %}
+
   <section class="data-card push-panel" data-push-panel data-public-key="{{ push_public_key }}">
     <div>
       <small class="eyebrow">Web Push</small>

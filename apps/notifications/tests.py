@@ -221,6 +221,26 @@ class NotificationTests(TestCase):
         self.assertContains(response, 'Client meeting')
         self.assertContains(response, 'Tout marquer comme lu')
 
+    def test_notifications_page_and_api_are_paginated(self):
+        Notification.objects.bulk_create([
+            Notification(
+                user=self.member, type=Notification.Type.UPDATED,
+                title=f'Notification {index}', message='Message',
+                scheduled_for=timezone.now(),
+            )
+            for index in range(55)
+        ])
+        self._login(self.member)
+
+        page = self.client.get(reverse('notifications:page'))
+        api = self.client.get(reverse('notifications:list'))
+
+        self.assertEqual(page.status_code, 200)
+        self.assertEqual(len(page.context['notifications']), 25)
+        self.assertEqual(page.context['notification_page'].paginator.num_pages, 3)
+        self.assertEqual(len(api.json()['data']), 50)
+        self.assertEqual(api.json()['pagination']['pages'], 2)
+
     def test_push_subscription_api_is_authenticated_and_user_scoped(self):
         url = reverse('notifications:push-subscriptions')
         payload = {

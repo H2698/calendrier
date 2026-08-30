@@ -179,6 +179,13 @@ def update_appointment(
             entity_type='appointment', entity_id=appointment.id,
             old_values={'member_id': member_id},
         )
+    if old_values['status'] != new_values['status']:
+        log_activity(
+            actor=actor, action='appointment_status_changed',
+            entity_type='appointment', entity_id=appointment.id,
+            old_values={'status': old_values['status']},
+            new_values={'status': new_values['status']},
+        )
     schedule_appointment_notifications(appointment, Notification.Type.UPDATED)
     schedule_appointment_notifications(appointment, Notification.Type.REMINDER)
     return appointment, conflicts

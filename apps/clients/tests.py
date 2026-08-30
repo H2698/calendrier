@@ -1,11 +1,14 @@
 import json
+from datetime import timedelta
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.accounts.models import Profile
 from apps.accounts.services import create_user_account
 from apps.audit.models import ActivityLog
+from apps.calendar_app.models import Appointment, AppointmentType
 
 from .models import Client
 from .services import archive_client, create_client
@@ -156,3 +159,28 @@ class ClientModuleTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()['error'], 'validation_error')
+
+    def test_list_and_detail_show_client_appointment_history(self):
+        appointment_type = AppointmentType.objects.create(
+            name='Client follow-up', created_by=self.admin
+        )
+        start_at = timezone.now() + timedelta(days=1)
+        appointment = Appointment.objects.create(
+            client=self.client_record, appointment_type=appointment_type,
+            title='Suivi Alpha', start_at=start_at,
+            end_at=start_at + timedelta(hours=1), created_by=self.admin,
+            updated_by=self.admin,
+        )
+        appointment.members.add(self.manager)
+        self._login(self.manager)
+
+        client_list = self.client.get(reverse('clients:list'))
+        detail = self.client.get(
+            reverse('clients:detail', args=(self.client_record.id,))
+        )
+
+        self.assertEqual(client_list.status_code, 200)
+        self.assertContains(client_list, start_at.strftime('%d/%m/%Y'))
+        self.assertEqual(detail.status_code, 200)
+        self.assertContains(detail, 'Suivi Alpha')
+        self.assertContains(detail, 'Client follow-up')

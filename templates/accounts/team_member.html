@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}{{ member.profile.full_name }} · Agency Calendar{% endblock %}
+{% block page_title %}Fiche membre{% endblock %}
+{% block content %}
+  <section class="section-heading">
+    <div><a class="back-inline" href="{% url 'accounts:team' %}">← Toute l'équipe</a><h2>{{ member.profile.full_name }}</h2><p class="muted-text">{{ member.profile.get_role_display }} · {{ member.profile.email }}</p></div>
+    <span class="status-pill{% if member.is_active and member.profile.is_active %} success{% endif %}">{% if member.is_active and member.profile.is_active %}Actif{% else %}Inactif{% endif %}</span>
+  </section>
+  <section class="detail-grid">
+    <article class="data-card detail-card">
+      <p class="eyebrow">Profil</p>
+      {% if is_agency_admin %}
+        <form method="post" class="entity-form compact-form">{% csrf_token %}{% for field in form %}<div class="form-field{% if field.name == 'is_active' %} wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endfor %}<div class="form-actions wide"><button class="button primary" type="submit">Enregistrer</button></div></form>
+      {% else %}
+        <dl class="detail-list"><div><dt>Nom</dt><dd>{{ member.profile.full_name }}</dd></div><div><dt>E-mail</dt><dd>{{ member.profile.email }}</dd></div><div><dt>Rôle</dt><dd>{{ member.profile.get_role_display }}</dd></div><div><dt>Couleur</dt><dd><span class="color-chip" style="--chip:{{ member.profile.calendar_color }}"></span>{{ member.profile.calendar_color }}</dd></div></dl>
+      {% endif %}
+    </article>
+    <article class="data-card detail-card">
+      <p class="eyebrow">Prochains rendez-vous</p>
+      {% for appointment in upcoming_appointments %}<a class="agenda-row" href="{% url 'calendar_app:calendar-page' %}"><time>{{ appointment.start_at|date:"d/m H:i" }}</time><span><strong>{{ appointment.title }}</strong><small>{{ appointment.appointment_type.name }}{% if appointment.client %} · {{ appointment.client.name }}{% endif %}</small></span></a>{% empty %}<p class="muted-text">Aucun rendez-vous à venir.</p>{% endfor %}
+    </article>
+  </section>
+{% endblock %}
