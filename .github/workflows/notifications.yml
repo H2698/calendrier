@@ -20,8 +20,10 @@ jobs:
       - name: Dispatch due notifications
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: |
           curl --fail-with-body --silent --show-error \
             --retry 3 --retry-delay 10 \
             --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}" \
             https://calendrier-hassen5.vercel.app/api/cron/send-due-notifications/
