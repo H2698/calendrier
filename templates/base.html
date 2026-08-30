@@ -7,6 +7,7 @@
   <meta name="color-scheme" content="light">
   <title>{% block title %}Agency Calendar{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% if user.is_authenticated %}app-shell{% else %}auth-shell{% endif %}">
