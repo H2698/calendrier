@@ -25,9 +25,12 @@
         <option value="postponed">Reporté</option>
       </select>
     </div>
+    <span class="sync-status" id="calendar-sync-status" aria-live="polite">
+      <i aria-hidden="true"></i> Synchronisation automatique
+    </span>
     {% if can_manage_calendar %}<button class="button primary" id="new-appointment" type="button">+ Nouveau rendez-vous</button>{% endif %}
   </section>
-  <section class="calendar-card" data-can-manage="{{ can_manage_calendar|yesno:'true,false' }}">
+  <section class="calendar-card" data-can-manage="{{ can_manage_calendar|yesno:'true,false' }}" data-auto-sync-seconds="10">
     <div id="calendar"></div>
   </section>
 

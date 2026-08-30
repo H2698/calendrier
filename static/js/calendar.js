@@ -4,6 +4,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const canManage = root.dataset.canManage === "true";
   const details = document.getElementById("event-details");
   const createDialog = document.getElementById("appointment-form");
+  const syncStatus = document.getElementById("calendar-sync-status");
+  const autoSyncMilliseconds = Math.max(5, Number(root.dataset.autoSyncSeconds) || 10) * 1000;
   const csrf = document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
   const statusLabels = {planned:"Planifié",confirmed:"Confirmé",completed:"Terminé",cancelled:"Annulé",postponed:"Reporté"};
 
@@ -20,7 +22,14 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const payload = await apiFetch(`/api/calendar/?${params}`);
       success(payload.data.map(item => ({id:item.id,title:item.title,start:item.start_at,end:item.end_at,backgroundColor:item.members[0]?.color || "#5b4df7",borderColor:"transparent",extendedProps:item})));
-    } catch (error) { failure(error); }
+      if (syncStatus) {
+        syncStatus.classList.remove("error");
+        syncStatus.title = `Dernière synchronisation : ${new Date().toLocaleTimeString()}`;
+      }
+    } catch (error) {
+      syncStatus?.classList.add("error");
+      failure(error);
+    }
   };
 
   const moveEvent = async (info) => {
@@ -44,6 +53,15 @@ document.addEventListener("DOMContentLoaded", () => {
     eventClick(info) { const item=info.event.extendedProps; document.getElementById("detail-type").textContent=item.appointment_type.name; document.getElementById("detail-title").textContent=info.event.title; document.getElementById("detail-list").innerHTML=`<div><dt>Horaire</dt><dd>${info.event.start.toLocaleString()} – ${info.event.end?.toLocaleTimeString() || ""}</dd></div><div><dt>Statut</dt><dd>${statusLabels[item.status] || item.status}</dd></div><div><dt>Membres</dt><dd>${item.members.map(m=>m.name).join(", ") || "—"}</dd></div>${item.client?`<div><dt>Client</dt><dd>${item.client.name}<br>${item.client.phone || ""}</dd></div>`:""}`; document.getElementById("detail-notes").textContent=item.notes || ""; details.showModal(); }
   });
   calendar.render();
+  const refreshVisibleCalendar = () => {
+    if (document.visibilityState === "visible" && !document.querySelector("dialog[open]")) {
+      calendar.refetchEvents();
+    }
+  };
+  window.setInterval(refreshVisibleCalendar, autoSyncMilliseconds);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshVisibleCalendar();
+  });
   ["filter-member","filter-type","filter-status"].forEach(id=>document.getElementById(id).addEventListener("change",()=>calendar.refetchEvents()));
   document.querySelectorAll("[data-close]").forEach(button=>button.addEventListener("click",()=>button.closest("dialog").close()));
   document.getElementById("new-appointment")?.addEventListener("click",()=>createDialog.showModal());

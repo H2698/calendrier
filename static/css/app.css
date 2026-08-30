@@ -130,6 +130,9 @@ button, input { font: inherit; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 6px; }
 .calendar-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 26px 0 18px; }
 .calendar-filters { display: flex; flex-wrap: wrap; gap: 9px; }
+.sync-status { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; color: var(--muted); font-size: .8rem; }
+.sync-status i { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 4px #dcfce7; }
+.sync-status.error i { background: var(--danger); box-shadow: 0 0 0 4px var(--danger-soft); }
 .calendar-filters select, .form-field select { min-height: 44px; padding: 0 36px 0 12px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
 .calendar-card { padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 7px 25px rgba(31,42,68,.04); }
 .fc .fc-button { border: 0 !important; border-radius: 9px !important; box-shadow: none !important; }
@@ -194,6 +197,7 @@ button, input { font: inherit; }
   .kpi-card { padding: 15px; }
   .search-bar { flex-wrap: wrap; }
   .calendar-heading { align-items: stretch; flex-direction: column; }
+  .sync-status { margin-left: 0; }
   .calendar-filters select { flex: 1 1 140px; }
   .calendar-card { padding: 8px; }
   .fc .fc-toolbar { align-items: flex-start; flex-direction: column; gap: 10px; }

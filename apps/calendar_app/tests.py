@@ -245,11 +245,31 @@ class CalendarBackendTests(TestCase):
         self.assertEqual(member_response.status_code, 200)
         self.assertNotContains(member_response, 'Nouveau rendez-vous')
         self.assertNotContains(member_response, 'Private Client')
+        self.assertContains(member_response, 'data-auto-sync-seconds="10"')
 
         self._login(self.admin)
         admin_response = self.client.get(reverse('calendar_app:calendar-page'))
         self.assertContains(admin_response, 'Nouveau rendez-vous')
         self.assertContains(admin_response, 'Private Client')
+
+    def test_calendar_sync_payload_keeps_unassigned_member_data_private(self):
+        self._api_create()
+        self._login(self.other_member)
+
+        response = self.client.get(
+            reverse('calendar_app:calendar-api'),
+            {
+                'start': (self.start_at - timedelta(days=1)).isoformat(),
+                'end': (self.start_at + timedelta(days=1)).isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        item = response.json()['data'][0]
+        self.assertEqual(item['title'], 'Rendez-vous agence')
+        self.assertNotIn('client', item)
+        self.assertNotIn('description', item)
+        self.assertNotIn('notes', item)
 
     def test_daily_recurrence_creates_real_editable_occurrences(self):
         response = self._api_create(
