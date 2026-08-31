@@ -111,6 +111,7 @@ $env:DEBUG = 'True'
 $env:USE_SQLITE = 'True'
 $env:DJANGO_SECRET_KEY = 'une-cle-locale-de-test'
 .\.venv\Scripts\python.exe manage.py test
+node --test tests/js/calendar.test.cjs
 .\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
 .\.venv\Scripts\python.exe -m pip check
 .\.venv\Scripts\python.exe manage.py collectstatic --noinput

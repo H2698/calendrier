@@ -255,4 +255,14 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("cancel-appointment")?.addEventListener("click", cancelSelected);
   document.getElementById("quick-client")?.addEventListener("click", createQuickClient);
   formElement?.addEventListener("submit", submitAppointment);
+
+  const pageUrl = new URL(window.location.href);
+  if (canManage && formElement && formDialog && pageUrl.searchParams.get("new") === "1") {
+    prepareCreate();
+    // Consume the shortcut so refreshing the calendar does not reopen the form.
+    pageUrl.searchParams.delete("new");
+    window.history.replaceState(
+      window.history.state, "", `${pageUrl.pathname}${pageUrl.search}${pageUrl.hash}`,
+    );
+  }
 });

@@ -9,7 +9,7 @@
       <p class="muted-text">Voici un aperçu de votre planning d’agence.</p>
     </div>
     {% if can_manage_calendar %}
-      <button class="button primary" type="button" disabled title="Disponible dans la phase Calendrier">+ Nouveau rendez-vous</button>
+      <a class="button primary" href="{% url 'calendar_app:calendar-page' %}?new=1">+ Nouveau rendez-vous</a>
     {% endif %}
   </section>
 

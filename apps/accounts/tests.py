@@ -66,16 +66,28 @@ class AuthenticationTests(TestCase):
         self.assertNotIn('_auth_user_id', self.client.session)
 
     def test_dashboard_action_depends_on_role(self):
-        admin = self.users[Profile.Role.ADMIN]
         member = self.users[Profile.Role.MEMBER]
-
-        self.client.force_login(admin, backend='apps.accounts.backends.EmailBackend')
-        response = self.client.get(reverse('dashboard'))
-        self.assertContains(response, 'Nouveau rendez-vous')
+        shortcut = f"{reverse('calendar_app:calendar-page')}?new=1"
+        for role in (Profile.Role.ADMIN, Profile.Role.MANAGER):
+            with self.subTest(role=role):
+                self.client.force_login(self.users[role], backend='apps.accounts.backends.EmailBackend')
+                response = self.client.get(reverse('dashboard'))
+                self.assertContains(
+                    response,
+                    f'<a class="button primary" href="{shortcut}">+ Nouveau rendez-vous</a>',
+                    html=True,
+                )
+                self.assertNotContains(response, 'Disponible dans la phase Calendrier')
+                calendar_page = self.client.get(shortcut)
+                self.assertEqual(calendar_page.status_code, 200)
+                self.assertContains(calendar_page, 'id="appointment-create-form"')
 
         self.client.force_login(member, backend='apps.accounts.backends.EmailBackend')
         response = self.client.get(reverse('dashboard'))
         self.assertNotContains(response, 'Nouveau rendez-vous')
+        self.assertNotContains(
+            self.client.get(shortcut), 'id="appointment-create-form"'
+        )
 
     def test_authenticated_layout_contains_accessible_mobile_navigation(self):
         self.client.force_login(
