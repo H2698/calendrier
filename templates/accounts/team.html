@@ -23,5 +23,19 @@
     </table>
   </div>
 </section>
-{% if is_agency_admin %}<section class="form-card data-card"><p class="eyebrow">Admin uniquement</p><h2>Ajouter un membre</h2><form method="post" class="entity-form">{% csrf_token %}{% for field in form %}<div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endfor %}<div class="form-actions wide"><button class="button primary" type="submit">Créer le compte</button></div></form></section>{% endif %}
+{% if archived_members %}
+<section class="data-card">
+  <h2>Anciens comptes archivés</h2>
+  <p class="muted-text">Ces comptes ont été archivés avec l’ancienne suppression. Pour libérer leur adresse e-mail, confirmez leur suppression définitive.</p>
+  <div class="table-wrap"><table class="data-table">
+    <thead><tr><th>Membre</th><th>Archivé le</th><th>Action</th></tr></thead>
+    <tbody>{% for member in archived_members %}
+      <tr><td>{{ member.profile.full_name }}<small>{{ member.profile.email }}</small></td>
+      <td>{{ member.profile.deleted_at|date:'d/m/Y H:i' }}</td>
+      <td><a class="button danger" href="{% url 'accounts:team-member-delete' member.id %}">Supprimer définitivement</a></td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+{% if is_agency_admin %}<section class="form-card data-card"><p class="eyebrow">Admin uniquement</p><h2>Ajouter un membre</h2><form method="post" class="entity-form">{% csrf_token %}{{ form.non_field_errors }}{% for field in form %}<div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endfor %}<div class="form-actions wide"><button class="button primary" type="submit">Créer le compte</button></div></form></section>{% endif %}
 {% endblock %}

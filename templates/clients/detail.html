@@ -17,7 +17,7 @@
       <dl class="detail-list">
         <div><dt>Téléphone</dt><dd>{{ client.phone|default:"Non renseigné" }}</dd></div>
         <div><dt>E-mail</dt><dd>{{ client.email|default:"Non renseigné" }}</dd></div>
-        <div><dt>Créé par</dt><dd>{{ client.created_by.profile.full_name }}</dd></div>
+        <div><dt>Créé par</dt><dd>{{ client.created_by.profile.full_name|default:'Compte supprimé (voir historique)' }}</dd></div>
         <div><dt>Dernière mise à jour</dt><dd>{{ client.updated_at|date:"d/m/Y à H:i" }}</dd></div>
       </dl>
     </article>

@@ -17,9 +17,22 @@ def json_safe(value):
     return value
 
 
+def actor_identity(actor):
+    if not actor:
+        return {}
+    profile = getattr(actor, 'profile', None)
+    return {
+        'id': str(actor.pk),
+        'full_name': profile.full_name if profile else actor.get_full_name(),
+        'email': actor.email,
+        'role': profile.role if profile else '',
+    }
+
+
 def log_activity(*, actor, action, entity_type, entity_id, old_values=None, new_values=None):
     return ActivityLog.objects.create(
         user=actor,
+        actor_snapshot=actor_identity(actor),
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,

@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.paginator import Paginator
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils.dateparse import parse_date
@@ -26,6 +27,7 @@ ACTION_LABELS = {
     'user_role_changed': 'Rôle utilisateur modifié',
     'user_disabled': 'Utilisateur désactivé',
     'user_deleted': 'Membre supprimé de l’équipe',
+    'user_permanently_deleted': 'Membre supprimé définitivement',
     'user_enabled': 'Utilisateur activé',
 }
 
@@ -37,12 +39,30 @@ def _filtered_activity(request):
     if entity_type := request.GET.get('entity_type'):
         queryset = queryset.filter(entity_type=entity_type)
     if user_id := request.GET.get('user'):
-        queryset = queryset.filter(user_id=user_id)
+        if user_id.isdecimal():
+            queryset = queryset.filter(Q(user_id=user_id) | Q(actor_snapshot__id=user_id))
+        else:
+            queryset = queryset.none()
     if date_from := parse_date(request.GET.get('date_from', '')):
         queryset = queryset.filter(created_at__date__gte=date_from)
     if date_to := parse_date(request.GET.get('date_to', '')):
         queryset = queryset.filter(created_at__date__lte=date_to)
     return queryset
+
+
+def _history_users():
+    users = {
+        str(user.pk): {'id': str(user.pk), 'name': user.profile.full_name}
+        for user in get_user_model().objects.select_related('profile')
+    }
+    snapshots = ActivityLog.objects.exclude(actor_snapshot={}).order_by().values_list(
+        'actor_snapshot', flat=True,
+    ).distinct()
+    for snapshot in snapshots:
+        actor_id = snapshot.get('id')
+        if actor_id and actor_id not in users:
+            users[actor_id] = {'id': actor_id, 'name': f"{snapshot.get('full_name', '')} (compte supprimé)"}
+    return sorted(users.values(), key=lambda item: item['name'].casefold())
 
 
 @require_GET
@@ -70,8 +90,7 @@ def history_page(request):
             'entity_options': ActivityLog.objects.order_by('entity_type')
             .values_list('entity_type', flat=True)
             .distinct(),
-            'user_options': get_user_model().objects.select_related('profile')
-            .order_by('profile__full_name'),
+            'user_options': _history_users(),
             'filter_query': query.urlencode(),
         },
     )
@@ -88,7 +107,8 @@ def activity_api(request):
             'data': [
                 {
                     'id': str(item.id),
-                    'user': item.user.profile.full_name if item.user else None,
+                    'user': item.actor_name or None,
+                    'actor_snapshot': item.actor_snapshot,
                     'action': item.action,
                     'entity_type': item.entity_type,
                     'entity_id': str(item.entity_id),

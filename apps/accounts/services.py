@@ -8,7 +8,8 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.services import log_activity
+from apps.audit.models import ActivityLog
+from apps.audit.services import actor_identity, log_activity
 
 from .models import LoginThrottle, Profile
 from .permissions import can_delete_team_member
@@ -118,9 +119,11 @@ def create_user_account(
 
 
 def _lock_profile_for_update(user):
-    # Use the same lock order as deletion so a simultaneous edit cannot
-    # overwrite the archival marker with a stale profile instance.
-    get_user_model().objects.select_for_update().get(pk=user.pk)
+    # Lock before editing so stale instances cannot recreate deleted accounts.
+    try:
+        get_user_model().objects.select_for_update().get(pk=user.pk)
+    except get_user_model().DoesNotExist:
+        raise ValidationError({'is_active': 'Ce membre a été supprimé.'})
     user.refresh_from_db()
     user.profile = Profile.objects.select_for_update().get(user_id=user.pk)
     return user.profile
@@ -228,32 +231,39 @@ def update_user_account(*, actor, user, data):
 @transaction.atomic
 def delete_team_member(*, actor, user):
     # Lock the two records separately: PostgreSQL cannot lock a nullable
-    # reverse one-to-one join. No appointment or audit row is deleted.
+    # reverse one-to-one join. Keep business records and independent audit data.
     user = get_user_model().objects.select_for_update().get(pk=user.pk)
     profile = Profile.objects.select_for_update().get(user_id=user.pk)
     user.profile = profile
     if not can_delete_team_member(actor, user):
         raise PermissionDenied
+    identity = actor_identity(user)
+    assignments = list(user.appointment_links.select_related('appointment'))
     old_values = {
-        'full_name': profile.full_name,
-        'email': profile.email,
-        'role': profile.role,
+        **identity,
         'is_active': user.is_active and profile.is_active,
         'deleted_at': profile.deleted_at,
+        'assigned_appointments': [
+            {'id': str(link.appointment_id), 'title': link.appointment.title}
+            for link in assignments
+        ],
+        'created_appointments': list(user.created_appointments.values_list('pk', flat=True)),
+        'updated_appointments': list(user.updated_appointments.values_list('pk', flat=True)),
+        'created_clients': list(user.created_clients.values_list('pk', flat=True)),
     }
-    profile.deleted_at = timezone.now()
-    profile.is_active = False
-    profile.in_app_notifications_enabled = False
-    profile.browser_notifications_enabled = False
-    profile.save(update_fields=(
-        'deleted_at', 'is_active', 'in_app_notifications_enabled',
-        'browser_notifications_enabled', 'updated_at',
-    ))
-    user.is_active = False
-    user.save(update_fields=('is_active',))
+    # Legacy records may predate snapshots. Preserve attribution before SET_NULL.
+    ActivityLog.objects.filter(user=user, actor_snapshot={}).update(actor_snapshot=identity)
+    for link in assignments:
+        log_activity(
+            actor=actor, action='appointment_member_unassigned',
+            entity_type='appointment', entity_id=link.appointment_id,
+            old_values={'member': identity, 'title': link.appointment.title},
+            new_values={'reason': 'user_permanently_deleted'},
+        )
     log_activity(
-        actor=actor, action='user_deleted', entity_type='user', entity_id=user.pk,
+        actor=actor, action='user_permanently_deleted', entity_type='user', entity_id=user.pk,
         old_values=old_values,
-        new_values={'is_active': False, 'deleted_at': profile.deleted_at},
+        new_values={'permanently_deleted': True, 'deleted_at': timezone.now()},
     )
+    user.delete()
     return user

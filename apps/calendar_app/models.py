@@ -98,12 +98,16 @@ class Appointment(models.Model):
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='created_appointments',
     )
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='updated_appointments',
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -144,7 +148,7 @@ class AppointmentMember(models.Model):
     )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         related_name='appointment_links',
     )
     created_at = models.DateTimeField(auto_now_add=True)

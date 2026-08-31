@@ -24,7 +24,7 @@
       </select>
       <select name="user" aria-label="Utilisateur">
         <option value="">Tous les utilisateurs</option>
-        {% for item in user_options %}<option value="{{ item.id }}"{% if request.GET.user == item.id|stringformat:'s' %} selected{% endif %}>{{ item.profile.full_name }}</option>{% endfor %}
+        {% for item in user_options %}<option value="{{ item.id }}"{% if request.GET.user == item.id %} selected{% endif %}>{{ item.name }}</option>{% endfor %}
       </select>
       <input type="date" name="date_from" value="{{ request.GET.date_from }}" aria-label="Date de début">
       <input type="date" name="date_to" value="{{ request.GET.date_to }}" aria-label="Date de fin">
@@ -38,8 +38,8 @@
           {% for item in activity_page %}
             <tr>
               <td>{{ item.created_at|date:'d/m/Y H:i' }}</td>
-              <td>{% if item.user %}{{ item.user.profile.full_name }}{% else %}Système{% endif %}</td>
-              <td>{{ item.action_label }}</td>
+              <td>{{ item.actor_name|default:'Système' }}{% if not item.user and item.actor_snapshot %}<small>Compte supprimé</small>{% endif %}</td>
+              <td>{{ item.action_label }}{% if item.action == 'user_permanently_deleted' %}<small>{{ item.old_values.full_name }} · {{ item.old_values.email }}</small>{% endif %}</td>
               <td>{{ item.entity_type|title }}<small>{{ item.entity_id }}</small></td>
               <td>
                 <details class="change-details">

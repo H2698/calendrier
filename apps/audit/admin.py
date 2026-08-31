@@ -11,6 +11,7 @@ class ActivityLogAdmin(admin.ModelAdmin):
     readonly_fields = (
         'id',
         'user',
+        'actor_snapshot',
         'action',
         'entity_type',
         'entity_id',

@@ -153,12 +153,27 @@ def team_page(request):
         if request.user.profile.role != Profile.Role.ADMIN:
             raise PermissionDenied
         if form.is_valid():
-            create_user_account(actor=request.user, **form.cleaned_data)
-            return redirect('accounts:team')
+            try:
+                create_user_account(actor=request.user, **form.cleaned_data)
+            except ValidationError as exc:
+                if hasattr(exc, 'message_dict'):
+                    for field, errors in exc.message_dict.items():
+                        form.add_error(field if field in form.fields else None, errors)
+                else:
+                    form.add_error(None, exc)
+            else:
+                messages.success(request, 'Membre créé.')
+                return redirect('accounts:team')
     members = list(_team_queryset())
     for member in members:
         member.can_be_deleted = can_delete_team_member(request.user, member)
-    return render(request, 'accounts/team.html', {'team_members': members, 'form': form})
+    archived_members = list(get_user_model().objects.filter(
+        profile__deleted_at__isnull=False,
+    ).select_related('profile').order_by('profile__full_name'))
+    archived_members = [member for member in archived_members if can_delete_team_member(request.user, member)]
+    return render(request, 'accounts/team.html', {
+        'team_members': members, 'archived_members': archived_members, 'form': form,
+    })
 
 
 @login_required
@@ -208,7 +223,9 @@ def team_member_page(request, user_id):
 @login_required
 @calendar_manager_required
 def team_member_delete_page(request, user_id):
-    member = get_object_or_404(_team_queryset(), id=user_id)
+    member = get_object_or_404(
+        get_user_model().objects.select_related('profile'), id=user_id,
+    )
     if not can_delete_team_member(request.user, member):
         raise PermissionDenied
     if request.method == 'POST':
@@ -220,8 +237,8 @@ def team_member_delete_page(request, user_id):
         delete_team_member(actor=request.user, user=member)
         messages.success(
             request,
-            f'{member.profile.full_name} a été supprimé de l’équipe. '
-            'Ses rendez-vous et son historique sont conservés.',
+            f'{member.profile.full_name} a été supprimé définitivement. '
+            'Son adresse e-mail est disponible. Ses rendez-vous et l’historique sont conservés.',
         )
         return redirect('accounts:team')
     return render(request, 'accounts/team_member_delete.html', {'member': member})

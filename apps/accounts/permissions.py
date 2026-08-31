@@ -19,7 +19,6 @@ def can_delete_team_member(actor, user):
         and actor.pk != user.pk
         and not user.is_superuser
         and user.profile.role != Profile.Role.ADMIN
-        and user.profile.deleted_at is None
     )
 
 

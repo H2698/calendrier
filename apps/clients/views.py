@@ -25,7 +25,7 @@ def _client_payload(client):
         'phone': client.phone,
         'email': client.email,
         'notes': client.notes,
-        'created_by': client.created_by.profile.full_name,
+        'created_by': client.created_by.profile.full_name if client.created_by else None,
         'created_at': client.created_at.isoformat(),
         'updated_at': client.updated_at.isoformat(),
     }

@@ -123,9 +123,23 @@ Avec `DEBUG=False` et une clé éphémère longue, exécuter également
 ## Exploitation et sauvegardes
 
 Dans Équipe, l'Admin et la Gérante peuvent utiliser « Supprimer », puis
-confirmer sur la page dédiée. Il s'agit d'un archivage : le compte disparaît
-de l'équipe, ne peut plus se connecter et ne reçoit plus de notifications.
-Les rendez-vous, affectations, clients et traces d'audit restent conservés.
+confirmer sur la page dédiée. La suppression est définitive : le compte,
+le profil, les notifications et les abonnements push sont effacés. L'adresse
+e-mail est libérée et les anciennes sessions ne permettent plus d'accéder au site.
+Les rendez-vous et clients restent conservés ; seuls les liens d'affectation
+du membre sont retirés (les autres participants restent inchangés).
+L'historique conserve une trace indépendante : identité du membre, identité
+de l'auteur, date, anciens liens de création/modification et affectations.
+Les anciennes actions du membre restent attribuées à son identité mémorisée,
+même après effacement du compte. Aucun mot de passe n'est enregistré dans l'audit.
+Les comptes archivés avant ce changement apparaissent dans « Anciens comptes
+archivés » : leur suppression définitive exige une confirmation explicite.
+Aucune migration n'efface automatiquement ces comptes. Un compte recréé avec
+la même adresse possède un nouvel identifiant, sans récupérer les anciens accès.
+Pour vérifier ce parcours sur la base configurée (y compris PostgreSQL),
+`python manage.py shell -c "import runpy; runpy.run_path('tests/smoke_team_deletion.py')"`
+utilise uniquement des comptes synthétiques dans une transaction annulée.
+Ce contrôle n'envoie aucune notification et ne supprime aucun compte existant.
 La suppression de son propre compte ou d'un administrateur est interdite.
 La Gérante n'obtient pas pour autant le droit de créer des comptes ou de
 modifier leurs rôles.

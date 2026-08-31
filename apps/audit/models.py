@@ -12,6 +12,7 @@ class ActivityLog(models.Model):
         null=True,
         related_name='activity_logs',
     )
+    actor_snapshot = models.JSONField(default=dict, blank=True, db_default={})
     action = models.CharField(max_length=80, db_index=True)
     entity_type = models.CharField(max_length=80, db_index=True)
     entity_id = models.CharField(max_length=64, db_index=True)
@@ -25,3 +26,11 @@ class ActivityLog(models.Model):
 
     def __str__(self):
         return f'{self.action} · {self.entity_type} · {self.entity_id}'
+
+    @property
+    def actor_name(self):
+        if self.actor_snapshot:
+            return self.actor_snapshot.get('full_name', '')
+        if self.user:
+            return self.user.profile.full_name
+        return ''

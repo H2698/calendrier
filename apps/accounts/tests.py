@@ -305,15 +305,16 @@ class TeamDeletionTests(TestCase):
                 self.login(actor)
                 response = self.client.post(self.delete_url(target), {'confirm': 'yes'})
                 self.assertRedirects(response, reverse('accounts:team'))
-                target.refresh_from_db()
-                self.assertFalse(target.is_active)
-                self.assertFalse(target.profile.is_active)
-                self.assertIsNotNone(target.profile.deleted_at)
-                self.assertTrue(get_user_model().objects.filter(pk=target.pk).exists())
-                log = ActivityLog.objects.get(action='user_deleted', entity_id=target.pk)
+                self.assertFalse(get_user_model().objects.filter(pk=target.pk).exists())
+                self.assertFalse(Profile.objects.filter(user_id=target.pk).exists())
+                log = ActivityLog.objects.get(action='user_permanently_deleted', entity_id=target.pk)
                 self.assertEqual(log.user, actor)
+                self.assertEqual(log.actor_snapshot['full_name'], actor.profile.full_name)
+                self.assertEqual(log.old_values['email'], target.email)
                 self.assertTrue(log.old_values['is_active'])
+                self.assertTrue(log.new_values['permanently_deleted'])
                 self.assertIsNotNone(log.new_values['deleted_at'])
+                self.assertNotIn(self.password, str(log.old_values))
 
     def test_delete_buttons_are_visible_to_admin_and_manager_only_for_allowed_targets(self):
         for actor in (self.admin, self.manager):
@@ -400,11 +401,10 @@ class TeamDeletionTests(TestCase):
             update_user_account(actor=self.admin, user=self.member, data={'is_active': True})
         with self.assertRaises(ValidationError):
             set_account_active(user=self.member, is_active=True, actor=self.admin)
-        self.member.refresh_from_db()
-        self.assertFalse(self.member.is_active)
-        self.assertIsNotNone(self.member.profile.deleted_at)
+        from django.contrib.auth import get_user_model
+        self.assertFalse(get_user_model().objects.filter(pk=self.member.pk).exists())
 
-    def test_appointments_clients_assignments_and_history_are_preserved(self):
+    def test_appointments_clients_and_history_survive_with_assignments_traced(self):
         from datetime import timedelta
         from django.utils import timezone
         from apps.audit.models import ActivityLog
@@ -419,7 +419,7 @@ class TeamDeletionTests(TestCase):
             start_at=timezone.now(), end_at=timezone.now() + timedelta(hours=1),
             created_by=self.member, updated_by=self.member,
         )
-        appointment.members.add(self.member)
+        appointment.members.add(self.member, self.admin)
         old_log = log_activity(
             actor=self.member, action='appointment_created', entity_type='appointment',
             entity_id=appointment.pk,
@@ -428,10 +428,28 @@ class TeamDeletionTests(TestCase):
         self.client.post(self.delete_url(), {'confirm': 'yes'})
         appointment.refresh_from_db()
         client_record.refresh_from_db()
-        self.assertEqual(appointment.created_by_id, self.member.pk)
-        self.assertEqual(client_record.created_by_id, self.member.pk)
-        self.assertTrue(appointment.members.filter(pk=self.member.pk).exists())
-        self.assertTrue(ActivityLog.objects.filter(pk=old_log.pk, user=self.member).exists())
+        self.assertIsNone(appointment.created_by_id)
+        self.assertIsNone(appointment.updated_by_id)
+        self.assertIsNone(client_record.created_by_id)
+        self.assertFalse(appointment.members.filter(pk=self.member.pk).exists())
+        self.assertTrue(appointment.members.filter(pk=self.admin.pk).exists())
+        old_log.refresh_from_db()
+        self.assertIsNone(old_log.user_id)
+        self.assertEqual(old_log.actor_snapshot['id'], str(self.member.pk))
+        self.assertEqual(old_log.actor_name, self.member.profile.full_name)
+        deletion = ActivityLog.objects.get(action='user_permanently_deleted', entity_id=self.member.pk)
+        self.assertEqual(deletion.old_values['created_clients'], [str(client_record.pk)])
+        self.assertEqual(deletion.old_values['created_appointments'], [str(appointment.pk)])
+        self.assertEqual(deletion.old_values['assigned_appointments'], [
+            {'id': str(appointment.pk), 'title': appointment.title},
+        ])
+        self.assertTrue(ActivityLog.objects.filter(
+            action='appointment_member_unassigned', entity_id=appointment.pk,
+            old_values__member__id=str(self.member.pk),
+        ).exists())
+        self.assertContains(self.client.get(reverse('audit:history')), self.member.profile.full_name)
+        from apps.clients.views import _client_payload
+        self.assertIsNone(_client_payload(client_record)['created_by'])
         from apps.notifications.services import schedule_appointment_notifications
         from apps.notifications.models import Notification
         schedule_appointment_notifications(appointment)
@@ -454,9 +472,106 @@ class TeamDeletionTests(TestCase):
         with patch('apps.notifications.services.webpush') as webpush:
             dispatch_due_notifications()
             webpush.assert_not_called()
-        self.member.profile.refresh_from_db()
-        self.assertFalse(self.member.profile.browser_notifications_enabled)
-        self.assertFalse(self.member.profile.in_app_notifications_enabled)
+        self.assertFalse(Notification.objects.filter(user_id=self.member.pk).exists())
+        self.assertFalse(Profile.objects.filter(user_id=self.member.pk).exists())
+
+    def test_deleted_email_can_be_reused_without_inheriting_old_identity(self):
+        from apps.audit.models import ActivityLog
+        from django.contrib.auth import get_user_model
+
+        self.login(self.admin)
+        self.client.post(self.delete_url(), {'confirm': 'yes'})
+        response = self.client.post(reverse('accounts:team'), {
+            'email': self.member.email.upper(), 'password': self.password,
+            'full_name': 'New Member', 'role': 'member', 'calendar_color': '#123456',
+        })
+        self.assertRedirects(response, reverse('accounts:team'))
+        replacement = get_user_model().objects.get(email=self.member.email)
+        self.assertNotEqual(replacement.pk, self.member.pk)
+        self.assertTrue(replacement.check_password(self.password))
+        self.assertFalse(replacement.appointments.exists())
+        self.assertTrue(ActivityLog.objects.filter(
+            action='user_permanently_deleted', entity_id=self.member.pk,
+        ).exists())
+
+    def test_legacy_archived_account_requires_confirmation_before_permanent_deletion(self):
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+
+        self.member.profile.deleted_at = timezone.now()
+        self.member.profile.is_active = False
+        self.member.profile.save()
+        self.member.is_active = False
+        self.member.save()
+        self.login(self.admin)
+        page = self.client.get(reverse('accounts:team'))
+        self.assertContains(page, 'Anciens comptes archivés')
+        self.assertContains(page, self.delete_url())
+        self.assertNotIn(self.member.pk, [
+            item['id'] for item in self.client.get(reverse('accounts:team-api')).json()['data']
+        ])
+        self.assertContains(self.client.get(self.delete_url()), 'irréversible')
+        self.assertTrue(get_user_model().objects.filter(pk=self.member.pk).exists())
+        self.assertRedirects(
+            self.client.post(self.delete_url(), {'confirm': 'yes'}), reverse('accounts:team'),
+        )
+        self.assertFalse(get_user_model().objects.filter(pk=self.member.pk).exists())
+
+    def test_duplicate_email_displays_form_error_for_active_and_archived_members(self):
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+
+        self.login(self.admin)
+        for archived_at in (None, timezone.now()):
+            with self.subTest(archived=bool(archived_at)):
+                Profile.objects.filter(user_id=self.member.pk).update(deleted_at=archived_at)
+                response = self.client.post(reverse('accounts:team'), {
+                    'email': self.member.email.upper(), 'password': self.password,
+                    'full_name': 'Duplicate', 'role': 'member', 'calendar_color': '#123456',
+                })
+                self.assertContains(response, 'Cette adresse e-mail existe déjà.')
+                self.assertEqual(response.context['form'].errors['email'], ['Cette adresse e-mail existe déjà.'])
+                self.assertNotContains(response, self.password)
+                self.assertEqual(get_user_model().objects.filter(email=self.member.email).count(), 1)
+
+    def test_failure_rolls_back_deletion_and_audit(self):
+        from unittest.mock import patch
+        from django.contrib.auth import get_user_model
+        from apps.audit.models import ActivityLog
+        from .services import delete_team_member
+
+        original_logs = ActivityLog.objects.count()
+        with patch('django.contrib.auth.models.User.delete', side_effect=RuntimeError('delete failed')):
+            with self.assertRaises(RuntimeError):
+                delete_team_member(actor=self.admin, user=self.member)
+        self.assertTrue(get_user_model().objects.filter(pk=self.member.pk).exists())
+        self.assertTrue(Profile.objects.filter(user_id=self.member.pk).exists())
+        self.assertEqual(ActivityLog.objects.count(), original_logs)
+
+    def test_push_subscriptions_are_removed_only_for_deleted_user(self):
+        from apps.notifications.models import PushSubscription
+
+        for user in (self.member, self.admin):
+            PushSubscription.objects.create(
+                user=user, endpoint=f'https://push.example.test/{user.pk}', p256dh='key', auth='auth',
+            )
+        self.login(self.admin)
+        self.client.post(self.delete_url(), {'confirm': 'yes'})
+        self.assertFalse(PushSubscription.objects.filter(user_id=self.member.pk).exists())
+        self.assertTrue(PushSubscription.objects.filter(user_id=self.admin.pk).exists())
+
+    def test_transactional_smoke_check_leaves_existing_accounts_untouched(self):
+        import runpy
+        from pathlib import Path
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+
+        original_users = list(get_user_model().objects.order_by('pk').values_list('pk', flat=True))
+        runpy.run_path(str(Path(settings.BASE_DIR) / 'tests' / 'smoke_team_deletion.py'))
+        self.assertEqual(
+            list(get_user_model().objects.order_by('pk').values_list('pk', flat=True)),
+            original_users,
+        )
 
 
 class SettingsTests(TestCase):

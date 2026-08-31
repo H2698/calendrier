@@ -4,15 +4,16 @@
 {% block content %}
   <section class="form-card data-card">
     <p class="eyebrow">Confirmation</p>
-    <h2>Supprimer {{ member.profile.full_name }} de l’équipe ?</h2>
-    <p>Ce membre disparaîtra de la liste de l’équipe et ne pourra plus se connecter ni recevoir de notifications.</p>
-    <p class="muted-text">Ses rendez-vous, ses affectations et l’historique seront conservés. Cette suppression est un archivage du compte, pas un effacement définitif des données.</p>
+    <h2>Supprimer définitivement {{ member.profile.full_name }} ?</h2>
+    <p>Le compte, le profil et les notifications de ce membre seront effacés. Il ne pourra plus se connecter. Cette action est irréversible et son adresse e-mail pourra être réutilisée.</p>
+    <p class="muted-text">Les rendez-vous et les clients restent conservés. Le membre sera retiré de ses rendez-vous, sans modifier les autres participants. Vérifiez les rendez-vous à réaffecter après la suppression.</p>
+    <p class="muted-text">L’historique conserve le nom, l’adresse e-mail, le rôle, les anciennes affectations, la date de suppression et l’identité de la personne qui supprime le compte.</p>
     {% if confirmation_error %}<p class="form-error" role="alert">Veuillez confirmer la suppression.</p>{% endif %}
     <form method="post">
       {% csrf_token %}
       <div class="form-actions deletion-actions">
         <a class="button secondary" href="{% url 'accounts:team' %}">Annuler</a>
-        <button class="button danger" type="submit" name="confirm" value="yes">Confirmer la suppression</button>
+        <button class="button danger" type="submit" name="confirm" value="yes">Confirmer la suppression définitive</button>
       </div>
     </form>
   </section>
