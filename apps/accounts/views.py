@@ -23,10 +23,11 @@ from .forms import (
     TeamMemberForm,
 )
 from .models import Profile
-from .permissions import admin_required, calendar_manager_required
+from .permissions import admin_required, calendar_manager_required, can_delete_team_member
 from .services import (
     clear_login_failures,
     create_user_account,
+    delete_team_member,
     login_blocked_until,
     login_throttle_key,
     record_login_failure,
@@ -138,6 +139,12 @@ def _dashboard_item(item):
     }
 
 
+def _team_queryset():
+    return get_user_model().objects.filter(
+        profile__deleted_at__isnull=True,
+    ).select_related('profile').order_by('profile__full_name')
+
+
 @login_required
 @calendar_manager_required
 def team_page(request):
@@ -148,7 +155,9 @@ def team_page(request):
         if form.is_valid():
             create_user_account(actor=request.user, **form.cleaned_data)
             return redirect('accounts:team')
-    members = get_user_model().objects.select_related('profile').order_by('profile__full_name')
+    members = list(_team_queryset())
+    for member in members:
+        member.can_be_deleted = can_delete_team_member(request.user, member)
     return render(request, 'accounts/team.html', {'team_members': members, 'form': form})
 
 
@@ -156,7 +165,7 @@ def team_page(request):
 @calendar_manager_required
 def team_member_page(request, user_id):
     member = get_object_or_404(
-        get_user_model().objects.select_related('profile'), id=user_id
+        _team_queryset(), id=user_id
     )
     initial = {
         'full_name': member.profile.full_name,
@@ -188,8 +197,34 @@ def team_member_page(request, user_id):
     ).order_by('start_at')[:10]
     return render(
         request, 'accounts/team_member.html',
-        {'member': member, 'form': form, 'upcoming_appointments': appointments},
+        {
+            'member': member, 'form': form, 'upcoming_appointments': appointments,
+            'can_delete_member': can_delete_team_member(request.user, member),
+        },
     )
+
+
+@require_http_methods(['GET', 'POST'])
+@login_required
+@calendar_manager_required
+def team_member_delete_page(request, user_id):
+    member = get_object_or_404(_team_queryset(), id=user_id)
+    if not can_delete_team_member(request.user, member):
+        raise PermissionDenied
+    if request.method == 'POST':
+        if request.POST.get('confirm') != 'yes':
+            return render(
+                request, 'accounts/team_member_delete.html',
+                {'member': member, 'confirmation_error': True}, status=400,
+            )
+        delete_team_member(actor=request.user, user=member)
+        messages.success(
+            request,
+            f'{member.profile.full_name} a été supprimé de l’équipe. '
+            'Ses rendez-vous et son historique sont conservés.',
+        )
+        return redirect('accounts:team')
+    return render(request, 'accounts/team_member_delete.html', {'member': member})
 
 
 def _team_payload(user):
@@ -199,7 +234,7 @@ def _team_payload(user):
 @require_GET
 @calendar_manager_required
 def team_api(request):
-    users = get_user_model().objects.select_related('profile').order_by('profile__full_name')
+    users = _team_queryset()
     return JsonResponse({'data': [_team_payload(user) for user in users]})
 
 
@@ -225,7 +260,7 @@ def team_create_api(request):
 @require_http_methods(['GET', 'PATCH'])
 @calendar_manager_required
 def team_detail_api(request, user_id):
-    user = get_object_or_404(get_user_model().objects.select_related('profile'), id=user_id)
+    user = get_object_or_404(_team_queryset(), id=user_id)
     if request.method == 'PATCH':
         if request.user.profile.role != Profile.Role.ADMIN:
             raise PermissionDenied

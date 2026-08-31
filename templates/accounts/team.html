@@ -3,6 +3,25 @@
 {% block page_title %}Équipe{% endblock %}
 {% block content %}
 <section class="section-heading"><div><p class="eyebrow">Membres internes</p><h2>Équipe agence</h2><p class="muted-text">Rôles, couleurs calendrier et état des comptes.</p></div></section>
-<section class="data-card"><div class="table-wrap"><table class="data-table"><thead><tr><th>Membre</th><th>Rôle</th><th>Couleur</th><th>Statut</th></tr></thead><tbody>{% for member in team_members %}<tr><td><a class="client-name" href="{% url 'accounts:team-member' member.id %}">{{ member.profile.full_name }}</a><small>{{ member.profile.email }}</small></td><td>{{ member.profile.get_role_display }}</td><td><span class="color-chip" style="--chip:{{ member.profile.calendar_color }}"></span>{{ member.profile.calendar_color }}</td><td>{% if member.is_active and member.profile.is_active %}<span class="status-pill success">Actif</span>{% else %}<span class="status-pill">Inactif</span>{% endif %}</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="data-card">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Membre</th><th>Rôle</th><th>Couleur</th><th>Statut</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for member in team_members %}
+          <tr>
+            <td><a class="client-name" href="{% url 'accounts:team-member' member.id %}">{{ member.profile.full_name }}</a><small>{{ member.profile.email }}</small></td>
+            <td>{{ member.profile.get_role_display }}</td>
+            <td><span class="color-chip" style="--chip:{{ member.profile.calendar_color }}"></span>{{ member.profile.calendar_color }}</td>
+            <td>{% if member.is_active and member.profile.is_active %}<span class="status-pill success">Actif</span>{% else %}<span class="status-pill">Inactif</span>{% endif %}</td>
+            <td>{% if member.can_be_deleted %}<a class="button danger" href="{% url 'accounts:team-member-delete' member.id %}" aria-label="Supprimer {{ member.profile.full_name }}">Supprimer</a>{% else %}<span class="muted-text">Compte protégé</span>{% endif %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="5" class="empty-state">Aucun membre dans l’équipe.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% if is_agency_admin %}<section class="form-card data-card"><p class="eyebrow">Admin uniquement</p><h2>Ajouter un membre</h2><form method="post" class="entity-form">{% csrf_token %}{% for field in form %}<div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endfor %}<div class="form-actions wide"><button class="button primary" type="submit">Créer le compte</button></div></form></section>{% endif %}
 {% endblock %}

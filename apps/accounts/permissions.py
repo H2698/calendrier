@@ -10,7 +10,17 @@ def user_role(user):
     if not user.is_authenticated:
         return None
     profile = getattr(user, 'profile', None)
-    return profile.role if profile and profile.is_active else None
+    return profile.role if user.is_active and profile and profile.is_active and not profile.deleted_at else None
+
+
+def can_delete_team_member(actor, user):
+    return (
+        user_role(actor) in {Profile.Role.ADMIN, Profile.Role.MANAGER}
+        and actor.pk != user.pk
+        and not user.is_superuser
+        and user.profile.role != Profile.Role.ADMIN
+        and user.profile.deleted_at is None
+    )
 
 
 def role_required(*allowed_roles):

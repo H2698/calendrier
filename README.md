@@ -121,6 +121,14 @@ Avec `DEBUG=False` et une clé éphémère longue, exécuter également
 
 ## Exploitation et sauvegardes
 
+Dans Équipe, l'Admin et la Gérante peuvent utiliser « Supprimer », puis
+confirmer sur la page dédiée. Il s'agit d'un archivage : le compte disparaît
+de l'équipe, ne peut plus se connecter et ne reçoit plus de notifications.
+Les rendez-vous, affectations, clients et traces d'audit restent conservés.
+La suppression de son propre compte ou d'un administrateur est interdite.
+La Gérante n'obtient pas pour autant le droit de créer des comptes ou de
+modifier leurs rôles.
+
 - surveiller les déploiements Vercel et les exécutions du workflow GitHub ;
 - vérifier périodiquement `/health/` et les notifications échouées ;
 - utiliser les mécanismes de sauvegarde/restauration du projet Neon ;

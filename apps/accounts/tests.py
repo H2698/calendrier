@@ -254,6 +254,199 @@ class TeamManagementTests(TestCase):
         self.assertEqual(self.client.get(reverse('accounts:team-api')).status_code, 403)
 
 
+class TeamDeletionTests(TestCase):
+    password = 'A-strong-test-password-482!'
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = create_user_account(
+            email='delete-admin@test.com', password=cls.password,
+            full_name='Delete Admin', role=Profile.Role.ADMIN,
+        )
+        cls.manager = create_user_account(
+            email='delete-manager@test.com', password=cls.password,
+            full_name='Delete Manager', role=Profile.Role.MANAGER,
+        )
+        cls.member = create_user_account(
+            email='delete-member@test.com', password=cls.password,
+            full_name='Delete Member', role=Profile.Role.MEMBER,
+        )
+
+    def login(self, user, client=None):
+        (client or self.client).force_login(
+            user, backend='apps.accounts.backends.EmailBackend'
+        )
+
+    def delete_url(self, user=None):
+        return reverse('accounts:team-member-delete', args=((user or self.member).pk,))
+
+    def test_admin_and_manager_can_delete_with_audit(self):
+        from django.contrib.auth import get_user_model
+        from apps.audit.models import ActivityLog
+
+        for actor in (self.admin, self.manager):
+            with self.subTest(role=actor.profile.role):
+                target = create_user_account(
+                    email=f'target-{actor.pk}@test.com', password=self.password,
+                    full_name='Target Member',
+                )
+                self.login(actor)
+                response = self.client.post(self.delete_url(target), {'confirm': 'yes'})
+                self.assertRedirects(response, reverse('accounts:team'))
+                target.refresh_from_db()
+                self.assertFalse(target.is_active)
+                self.assertFalse(target.profile.is_active)
+                self.assertIsNotNone(target.profile.deleted_at)
+                self.assertTrue(get_user_model().objects.filter(pk=target.pk).exists())
+                log = ActivityLog.objects.get(action='user_deleted', entity_id=target.pk)
+                self.assertEqual(log.user, actor)
+                self.assertTrue(log.old_values['is_active'])
+                self.assertIsNotNone(log.new_values['deleted_at'])
+
+    def test_delete_buttons_are_visible_to_admin_and_manager_only_for_allowed_targets(self):
+        for actor in (self.admin, self.manager):
+            self.login(actor)
+            page = self.client.get(reverse('accounts:team'))
+            self.assertContains(page, self.delete_url())
+            self.assertNotContains(page, self.delete_url(self.admin))
+            self.assertNotContains(page, self.delete_url(actor))
+            detail = self.client.get(reverse('accounts:team-member', args=(self.member.pk,)))
+            self.assertContains(detail, self.delete_url())
+
+    def test_get_missing_confirmation_and_unsupported_methods_never_delete(self):
+        self.login(self.admin)
+        self.assertContains(self.client.get(self.delete_url()), 'Confirmer la suppression')
+        self.assertEqual(self.client.post(self.delete_url()).status_code, 400)
+        self.assertEqual(self.client.delete(self.delete_url()).status_code, 405)
+        self.member.profile.refresh_from_db()
+        self.assertIsNone(self.member.profile.deleted_at)
+
+    def test_post_requires_csrf(self):
+        from django.test import Client
+
+        browser = Client(enforce_csrf_checks=True)
+        self.login(self.admin, browser)
+        self.assertEqual(browser.post(self.delete_url(), {'confirm': 'yes'}).status_code, 403)
+        self.member.profile.refresh_from_db()
+        self.assertIsNone(self.member.profile.deleted_at)
+
+    def test_member_anonymous_self_and_admin_targets_are_denied(self):
+        self.assertEqual(self.client.post(self.delete_url(), {'confirm': 'yes'}).status_code, 302)
+        self.login(self.member)
+        self.assertEqual(self.client.post(self.delete_url(self.manager), {'confirm': 'yes'}).status_code, 403)
+        for actor in (self.admin, self.manager):
+            self.login(actor)
+            for target in (actor, self.admin):
+                self.assertEqual(self.client.post(self.delete_url(target), {'confirm': 'yes'}).status_code, 403)
+
+    def test_service_cannot_bypass_role_or_superuser_protection(self):
+        from apps.accounts.services import delete_team_member
+
+        with self.assertRaises(PermissionDenied):
+            delete_team_member(actor=self.member, user=self.manager)
+        self.member.is_superuser = True
+        self.member.save(update_fields=('is_superuser',))
+        with self.assertRaises(PermissionDenied):
+            delete_team_member(actor=self.manager, user=self.member)
+
+    def test_deleted_member_disappears_from_team_and_cannot_be_edited(self):
+        self.login(self.admin)
+        self.client.post(self.delete_url(), {'confirm': 'yes'})
+        self.assertNotContains(self.client.get(reverse('accounts:team')), self.member.email)
+        ids = [item['id'] for item in self.client.get(reverse('accounts:team-api')).json()['data']]
+        self.assertNotIn(self.member.pk, ids)
+        for name in ('accounts:team-member', 'accounts:team-detail-api', 'accounts:team-member-delete'):
+            self.assertEqual(self.client.get(reverse(name, args=(self.member.pk,))).status_code, 404)
+        self.assertEqual(self.client.post(self.delete_url(), {'confirm': 'yes'}).status_code, 404)
+        self.assertEqual(self.client.patch(
+            reverse('accounts:team-detail-api', args=(self.member.pk,)),
+            data='{"is_active": true}', content_type='application/json',
+        ).status_code, 404)
+
+    def test_existing_session_and_new_login_are_blocked(self):
+        from django.test import Client
+
+        member_browser = Client()
+        self.login(self.member, member_browser)
+        self.login(self.manager)
+        self.client.post(self.delete_url(), {'confirm': 'yes'})
+        self.assertRedirects(member_browser.get(reverse('dashboard')), reverse('accounts:login'))
+        self.assertNotIn('_auth_user_id', member_browser.session)
+        member_browser.post(reverse('accounts:login'), {
+            'username': self.member.email, 'password': self.password,
+        })
+        self.assertNotIn('_auth_user_id', member_browser.session)
+
+    def test_stale_profile_cannot_reactivate_deleted_member(self):
+        from .services import update_user_account
+
+        # Cache the old profile before another request deletes the member.
+        self.assertIsNone(self.member.profile.deleted_at)
+        self.login(self.admin)
+        self.client.post(self.delete_url(), {'confirm': 'yes'})
+        with self.assertRaises(ValidationError):
+            update_user_account(actor=self.admin, user=self.member, data={'is_active': True})
+        with self.assertRaises(ValidationError):
+            set_account_active(user=self.member, is_active=True, actor=self.admin)
+        self.member.refresh_from_db()
+        self.assertFalse(self.member.is_active)
+        self.assertIsNotNone(self.member.profile.deleted_at)
+
+    def test_appointments_clients_assignments_and_history_are_preserved(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from apps.audit.models import ActivityLog
+        from apps.audit.services import log_activity
+        from apps.calendar_app.models import Appointment, AppointmentType
+        from apps.clients.services import create_client
+
+        client_record = create_client(actor=self.member, data={'name': 'Retained Client'})
+        appointment = Appointment.objects.create(
+            client=client_record,
+            appointment_type=AppointmentType.objects.first(), title='Retained Meeting',
+            start_at=timezone.now(), end_at=timezone.now() + timedelta(hours=1),
+            created_by=self.member, updated_by=self.member,
+        )
+        appointment.members.add(self.member)
+        old_log = log_activity(
+            actor=self.member, action='appointment_created', entity_type='appointment',
+            entity_id=appointment.pk,
+        )
+        self.login(self.manager)
+        self.client.post(self.delete_url(), {'confirm': 'yes'})
+        appointment.refresh_from_db()
+        client_record.refresh_from_db()
+        self.assertEqual(appointment.created_by_id, self.member.pk)
+        self.assertEqual(client_record.created_by_id, self.member.pk)
+        self.assertTrue(appointment.members.filter(pk=self.member.pk).exists())
+        self.assertTrue(ActivityLog.objects.filter(pk=old_log.pk, user=self.member).exists())
+        from apps.notifications.services import schedule_appointment_notifications
+        from apps.notifications.models import Notification
+        schedule_appointment_notifications(appointment)
+        self.assertFalse(Notification.objects.filter(appointment=appointment, user=self.member).exists())
+
+    def test_deleted_member_receives_no_push(self):
+        from unittest.mock import patch
+        from django.utils import timezone
+        from apps.notifications.models import Notification
+        from apps.notifications.services import dispatch_due_notifications
+
+        self.member.profile.browser_notifications_enabled = True
+        self.member.profile.save()
+        Notification.objects.create(
+            user=self.member, type=Notification.Type.REMINDER,
+            title='Reminder', message='Message', scheduled_for=timezone.now(),
+        )
+        self.login(self.admin)
+        self.client.post(self.delete_url(), {'confirm': 'yes'})
+        with patch('apps.notifications.services.webpush') as webpush:
+            dispatch_due_notifications()
+            webpush.assert_not_called()
+        self.member.profile.refresh_from_db()
+        self.assertFalse(self.member.profile.browser_notifications_enabled)
+        self.assertFalse(self.member.profile.in_app_notifications_enabled)
+
+
 class SettingsTests(TestCase):
     password = 'A-strong-test-password-482!'
 

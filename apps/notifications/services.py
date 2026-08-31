@@ -15,7 +15,8 @@ def schedule_appointment_notifications(appointment, notification_type=Notificati
     members = list(
         appointment.members.filter(
             Q(profile__in_app_notifications_enabled=True)
-            | Q(profile__browser_notifications_enabled=True)
+            | Q(profile__browser_notifications_enabled=True),
+            is_active=True, profile__is_active=True, profile__deleted_at__isnull=True,
         )
     )
     if notification_type == Notification.Type.REMINDER:
@@ -66,7 +67,12 @@ def dispatch_due_notifications():
 
 
 def send_web_push(notification):
-    if not notification.user.profile.browser_notifications_enabled:
+    if (
+        not notification.user.is_active
+        or not notification.user.profile.is_active
+        or notification.user.profile.deleted_at
+        or not notification.user.profile.browser_notifications_enabled
+    ):
         return {'sent': 0, 'failed': 0, 'stale': 0, 'configured': True, 'enabled': False}
     if not settings.VAPID_PRIVATE_KEY or not settings.VAPID_PUBLIC_KEY:
         return {'sent': 0, 'failed': 0, 'stale': 0, 'configured': False}

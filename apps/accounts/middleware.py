@@ -12,7 +12,7 @@ class ActiveAccountMiddleware:
     def __call__(self, request):
         if request.user.is_authenticated:
             profile = getattr(request.user, 'profile', None)
-            if not request.user.is_active or not profile or not profile.is_active:
+            if not request.user.is_active or not profile or not profile.is_active or profile.deleted_at:
                 logout(request)
                 if request.path != reverse('accounts:login'):
                     return redirect('accounts:login')

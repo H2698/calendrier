@@ -5,6 +5,7 @@
   <section class="section-heading">
     <div><a class="back-inline" href="{% url 'accounts:team' %}">← Toute l'équipe</a><h2>{{ member.profile.full_name }}</h2><p class="muted-text">{{ member.profile.get_role_display }} · {{ member.profile.email }}</p></div>
     <span class="status-pill{% if member.is_active and member.profile.is_active %} success{% endif %}">{% if member.is_active and member.profile.is_active %}Actif{% else %}Inactif{% endif %}</span>
+    {% if can_delete_member %}<a class="button danger" href="{% url 'accounts:team-member-delete' member.id %}">Supprimer</a>{% endif %}
   </section>
   <section class="detail-grid">
     <article class="data-card detail-card">

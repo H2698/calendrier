@@ -22,7 +22,7 @@ class EmailBackend(ModelBackend):
 
         if user.check_password(password) and self.user_can_authenticate(user):
             profile = getattr(user, 'profile', None)
-            if profile and profile.is_active:
+            if profile and profile.is_active and not profile.deleted_at:
                 return user
         return None
 

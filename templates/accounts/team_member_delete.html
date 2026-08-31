@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Supprimer un membre · Agency Calendar{% endblock %}
+{% block page_title %}Supprimer un membre{% endblock %}
+{% block content %}
+  <section class="form-card data-card">
+    <p class="eyebrow">Confirmation</p>
+    <h2>Supprimer {{ member.profile.full_name }} de l’équipe ?</h2>
+    <p>Ce membre disparaîtra de la liste de l’équipe et ne pourra plus se connecter ni recevoir de notifications.</p>
+    <p class="muted-text">Ses rendez-vous, ses affectations et l’historique seront conservés. Cette suppression est un archivage du compte, pas un effacement définitif des données.</p>
+    {% if confirmation_error %}<p class="form-error" role="alert">Veuillez confirmer la suppression.</p>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="form-actions deletion-actions">
+        <a class="button secondary" href="{% url 'accounts:team' %}">Annuler</a>
+        <button class="button danger" type="submit" name="confirm" value="yes">Confirmer la suppression</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

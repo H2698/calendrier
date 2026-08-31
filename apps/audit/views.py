@@ -25,6 +25,7 @@ ACTION_LABELS = {
     'user_updated': 'Utilisateur modifié',
     'user_role_changed': 'Rôle utilisateur modifié',
     'user_disabled': 'Utilisateur désactivé',
+    'user_deleted': 'Membre supprimé de l’équipe',
     'user_enabled': 'Utilisateur activé',
 }
 

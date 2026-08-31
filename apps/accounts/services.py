@@ -4,13 +4,14 @@ import hmac
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 
 from apps.audit.services import log_activity
 
 from .models import LoginThrottle, Profile
+from .permissions import can_delete_team_member
 
 
 LOGIN_FAILURE_LIMIT = 5
@@ -116,8 +117,20 @@ def create_user_account(
     return user
 
 
+def _lock_profile_for_update(user):
+    # Use the same lock order as deletion so a simultaneous edit cannot
+    # overwrite the archival marker with a stale profile instance.
+    get_user_model().objects.select_for_update().get(pk=user.pk)
+    user.refresh_from_db()
+    user.profile = Profile.objects.select_for_update().get(user_id=user.pk)
+    return user.profile
+
+
 @transaction.atomic
 def set_account_active(*, user, is_active, actor=None):
+    _lock_profile_for_update(user)
+    if user.profile.deleted_at:
+        raise ValidationError({'is_active': 'Un membre supprimé ne peut pas être réactivé ici.'})
     old_is_active = user.is_active and user.profile.is_active
     user.is_active = is_active
     user.save(update_fields=('is_active',))
@@ -137,7 +150,9 @@ def set_account_active(*, user, is_active, actor=None):
 def update_user_account(*, actor, user, data):
     if not isinstance(data, dict):
         raise ValidationError('Les données utilisateur doivent être un objet.')
-    profile = user.profile
+    profile = _lock_profile_for_update(user)
+    if profile.deleted_at:
+        raise ValidationError({'is_active': 'Un membre supprimé ne peut plus être modifié.'})
     old_values = {
         'full_name': profile.full_name,
         'email': profile.email,
@@ -207,4 +222,38 @@ def update_user_account(*, actor, user, data):
             old_values={'is_active': old_values['is_active']},
             new_values={'is_active': desired_active},
         )
+    return user
+
+
+@transaction.atomic
+def delete_team_member(*, actor, user):
+    # Lock the two records separately: PostgreSQL cannot lock a nullable
+    # reverse one-to-one join. No appointment or audit row is deleted.
+    user = get_user_model().objects.select_for_update().get(pk=user.pk)
+    profile = Profile.objects.select_for_update().get(user_id=user.pk)
+    user.profile = profile
+    if not can_delete_team_member(actor, user):
+        raise PermissionDenied
+    old_values = {
+        'full_name': profile.full_name,
+        'email': profile.email,
+        'role': profile.role,
+        'is_active': user.is_active and profile.is_active,
+        'deleted_at': profile.deleted_at,
+    }
+    profile.deleted_at = timezone.now()
+    profile.is_active = False
+    profile.in_app_notifications_enabled = False
+    profile.browser_notifications_enabled = False
+    profile.save(update_fields=(
+        'deleted_at', 'is_active', 'in_app_notifications_enabled',
+        'browser_notifications_enabled', 'updated_at',
+    ))
+    user.is_active = False
+    user.save(update_fields=('is_active',))
+    log_activity(
+        actor=actor, action='user_deleted', entity_type='user', entity_id=user.pk,
+        old_values=old_values,
+        new_values={'is_active': False, 'deleted_at': profile.deleted_at},
+    )
     return user
