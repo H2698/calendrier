@@ -25,6 +25,7 @@ def verify():
     token = uuid4().hex
     test_emails = [f'deletion-check-{role}-{token}@example.invalid' for role in ('admin', 'member')]
     with transaction.atomic(), override_settings(ALLOWED_HOSTS=['testserver']):
+        used_colors = set(Profile.objects.filter(deleted_at__isnull=True).values_list('calendar_color', flat=True))
         admin = create_user_account(
             email=test_emails[0], password=uuid4().hex, full_name='Deletion Check Admin',
             role=Profile.Role.ADMIN,
@@ -32,6 +33,8 @@ def verify():
         target = create_user_account(
             email=test_emails[1], password=uuid4().hex, full_name='Deletion Check Member',
         )
+        assert admin.profile.calendar_color not in {color.upper() for color in used_colors}
+        assert target.profile.calendar_color != admin.profile.calendar_color
         target_id = target.pk
         customer = Client.objects.create(name=f'Deletion check {token}', created_by=target)
         kind = AppointmentType.objects.create(name=f'Deletion check {token}', created_by=target)
@@ -82,13 +85,17 @@ def verify():
             assert admin_browser.get(reverse(route, kwargs=kwargs), secure=True).status_code == 200, route
         history = admin_browser.get(reverse('audit:activity-api'), {'user': str(target_id)}, secure=True)
         assert history.json()['data'][0]['user'] == 'Deletion Check Member'
+        team = admin_browser.get(reverse('accounts:team'), secure=True)
+        assert 'type="color"' in team.content.decode()
+        assert 'js/calendar-color.js' in team.content.decode()
         form = {
             'email': test_emails[1], 'password': uuid4().hex, 'full_name': 'Replacement Check',
-            'role': 'member', 'calendar_color': '#2563EB',
+            'role': 'member', 'automatic_color': 'on', 'calendar_color': admin.profile.calendar_color,
         }
         assert admin_browser.post(reverse('accounts:team'), form, secure=True).status_code == 302
         replacement = get_user_model().objects.get(email=test_emails[1])
         assert replacement.pk != target_id and not replacement.appointments.exists()
+        assert replacement.profile.calendar_color != admin.profile.calendar_color
         duplicate = admin_browser.post(reverse('accounts:team'), form, secure=True)
         assert duplicate.status_code == 200 and 'Cette adresse e-mail existe déjà.' in duplicate.content.decode()
         # Roll back every inserted/updated/deleted row, including sessions and audit.

@@ -6,6 +6,8 @@ from apps.calendar_app.models import AppointmentType
 from apps.core.models import AgencySettings
 
 from .models import Profile
+from .colors import available_calendar_color
+from .widgets import CalendarColorInput
 
 
 class EmailAuthenticationForm(AuthenticationForm):
@@ -45,7 +47,28 @@ class TeamMemberForm(forms.Form):
     email = forms.EmailField(label='Adresse e-mail')
     password = forms.CharField(label='Mot de passe initial', min_length=10, widget=forms.PasswordInput)
     role = forms.ChoiceField(label='Rôle', choices=(('manager', 'Gérante'), ('member', 'Membre')))
-    calendar_color = forms.RegexField(label='Couleur calendrier', regex=r'^#[0-9A-Fa-f]{6}$', initial='#2563EB')
+    calendar_color = forms.RegexField(
+        label='Couleur calendrier', regex=r'^#[0-9A-Fa-f]{6}$',
+        required=False, widget=CalendarColorInput,
+    )
+    automatic_color = forms.BooleanField(
+        label='Choisir automatiquement une couleur disponible', required=False, initial=True,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        suggested = available_calendar_color()
+        self.fields['calendar_color'].initial = suggested
+        self.fields['calendar_color'].widget.attrs['data-suggested-color'] = suggested
+
+    def clean(self):
+        data = super().clean()
+        if data.pop('automatic_color', False):
+            # Recompute on creation: another admin may have used the preview color.
+            data['calendar_color'] = None
+        elif not data.get('calendar_color') and 'calendar_color' not in self.errors:
+            self.add_error('calendar_color', 'Choisissez une couleur ou activez le choix automatique.')
+        return data
 
 
 class TeamMemberEditForm(forms.Form):
@@ -53,7 +76,7 @@ class TeamMemberEditForm(forms.Form):
     email = forms.EmailField(label='Adresse e-mail')
     role = forms.ChoiceField(label='Rôle', choices=Profile.Role.choices)
     calendar_color = forms.RegexField(
-        label='Couleur calendrier', regex=r'^#[0-9A-Fa-f]{6}$'
+        label='Couleur calendrier', regex=r'^#[0-9A-Fa-f]{6}$', widget=CalendarColorInput,
     )
     is_active = forms.BooleanField(label='Compte actif', required=False)
 
@@ -64,6 +87,7 @@ class ProfileSettingsForm(forms.ModelForm):
     class Meta:
         model = Profile
         fields = ('full_name', 'email', 'calendar_color', 'avatar_url')
+        widgets = {'calendar_color': CalendarColorInput}
         labels = {
             'full_name': 'Nom complet',
             'calendar_color': 'Couleur calendrier',

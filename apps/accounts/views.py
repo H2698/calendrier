@@ -266,7 +266,7 @@ def team_create_api(request):
             email=data.get('email', ''), password=data.get('password', ''),
             full_name=data.get('full_name', ''),
             role=data.get('role', Profile.Role.MEMBER),
-            calendar_color=data.get('calendar_color', '#2563EB'),
+            calendar_color=data.get('calendar_color'),
             actor=request.user,
         )
     except (json.JSONDecodeError, ValidationError) as exc:

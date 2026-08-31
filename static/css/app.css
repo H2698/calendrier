@@ -161,6 +161,11 @@ button, input { font: inherit; }
 .agenda-row span, .agenda-row small { display: block; }
 .agenda-row small { margin-top: 3px; color: var(--muted); }
 .color-chip { display:inline-block; width:12px; height:12px; margin-right:8px; border-radius:50%; background:var(--chip); }
+.calendar-color-control { display: flex; align-items: center; gap: 12px; }
+.calendar-color-control input[type="color"], .compact-form .calendar-color-control input[type="color"] { flex: 0 0 76px; width: 76px; min-height: 46px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; }
+.calendar-color-control output { font-family: monospace; font-size: 0.95rem; }
+.calendar-color-auto { display: flex; align-items: center; gap: 10px; }
+.calendar-color-auto input[type="checkbox"] { width: 18px; min-height: 18px; height: 18px; padding: 0; accent-color: var(--primary); }
 .status-pill { display:inline-block; padding:4px 9px; border-radius:999px; background:#f1f3f7; color:var(--muted); font-size:.78rem; font-weight:750; }
 .status-pill.success { background:#ecfdf3; color:#15803d; }
 .notification-list { display: grid; }

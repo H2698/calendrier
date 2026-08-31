@@ -112,6 +112,7 @@ $env:USE_SQLITE = 'True'
 $env:DJANGO_SECRET_KEY = 'une-cle-locale-de-test'
 .\.venv\Scripts\python.exe manage.py test
 node --test tests/js/calendar.test.cjs
+node --test tests/js/calendar-color.test.cjs
 .\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
 .\.venv\Scripts\python.exe -m pip check
 .\.venv\Scripts\python.exe manage.py collectstatic --noinput
@@ -121,6 +122,18 @@ Avec `DEBUG=False` et une clé éphémère longue, exécuter également
 `manage.py check --deploy`.
 
 ## Exploitation et sauvegardes
+
+À la création d'un membre, le formulaire propose une couleur disponible avec
+un sélecteur visuel et le code hexadécimal. Le mode automatique (activé par
+défaut) revérifie la couleur à l'enregistrement ; une sélection manuelle
+désactive ce mode et conserve le choix de l'administrateur. Sans JavaScript,
+décocher le mode automatique pour enregistrer le choix manuel.
+L'API attribue aussi une couleur disponible si `calendar_color` est omis ou vide.
+L'attribution ignore la casse, réserve les couleurs des membres inactifs et
+sérialise les créations PostgreSQL pour éviter les doublons automatiques.
+La palette s'étend après épuisement des couleurs prédéfinies. Les couleurs
+existantes ne sont pas modifiées ; le sélecteur est aussi disponible sur la
+fiche membre et dans les paramètres du profil. Un choix manuel peut être partagé.
 
 Dans Équipe, l'Admin et la Gérante peuvent utiliser « Supprimer », puis
 confirmer sur la page dédiée. La suppression est définitive : le compte,

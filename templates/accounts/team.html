@@ -37,5 +37,26 @@
   </table></div>
 </section>
 {% endif %}
-{% if is_agency_admin %}<section class="form-card data-card"><p class="eyebrow">Admin uniquement</p><h2>Ajouter un membre</h2><form method="post" class="entity-form">{% csrf_token %}{{ form.non_field_errors }}{% for field in form %}<div class="form-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</div>{% endfor %}<div class="form-actions wide"><button class="button primary" type="submit">Créer le compte</button></div></form></section>{% endif %}
+{% if is_agency_admin %}
+<section class="form-card data-card">
+  <p class="eyebrow">Admin uniquement</p><h2>Ajouter un membre</h2>
+  <form method="post" class="entity-form">
+    {% csrf_token %}{{ form.non_field_errors }}
+    {% for field in form %}
+      <div class="form-field{% if field.name == 'automatic_color' %} wide{% endif %}">
+        {% if field.name == 'automatic_color' %}
+          <label class="calendar-color-auto">{{ field }} <span>{{ field.label }}</span></label>
+          <small class="muted-text">Décochez cette option pour garder une couleur choisie manuellement. En mode automatique, la couleur est vérifiée à la création.</small>
+        {% else %}
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+          {% if field.name == 'calendar_color' %}<small class="muted-text">Cliquez sur la couleur pour la modifier.</small>{% endif %}
+        {% endif %}
+        {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+      </div>
+    {% endfor %}
+    <div class="form-actions wide"><button class="button primary" type="submit">Créer le compte</button></div>
+  </form>
+</section>
+{% endif %}
 {% endblock %}
+{% block extra_scripts %}{{ form.media }}{% endblock %}

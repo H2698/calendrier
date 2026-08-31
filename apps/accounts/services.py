@@ -5,13 +5,14 @@ import hmac
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 
 from apps.audit.models import ActivityLog
 from apps.audit.services import actor_identity, log_activity
 
 from .models import LoginThrottle, Profile
+from .colors import available_calendar_color
 from .permissions import can_delete_team_member
 
 
@@ -71,7 +72,7 @@ def create_user_account(
     password,
     full_name,
     role=Profile.Role.MEMBER,
-    calendar_color='#2563EB',
+    calendar_color=None,
     is_active=True,
     actor=None,
 ):
@@ -84,6 +85,14 @@ def create_user_account(
         email__iexact=normalized_email
     ).exists():
         raise ValidationError({'email': 'Cette adresse e-mail existe déjà.'})
+
+    # Serialize color allocation across Vercel workers, including custom creates.
+    # The transaction releases this PostgreSQL lock on commit or rollback.
+    if connection.vendor == 'postgresql':
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT pg_advisory_xact_lock(%s)', [0x43414C434F4C4F52])
+    if calendar_color is None or calendar_color == '':
+        calendar_color = available_calendar_color()
 
     name_parts = full_name.strip().split(maxsplit=1)
     user = get_user_model().objects.create_user(

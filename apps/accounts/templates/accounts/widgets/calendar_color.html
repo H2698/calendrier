@@ -1,0 +1,4 @@
+<span class="calendar-color-control" data-calendar-color>
+  {% include 'django/forms/widgets/input.html' %}
+  <output{% if widget.attrs.id %} for="{{ widget.attrs.id }}"{% endif %} aria-live="polite">{{ widget.value|default:''|upper }}</output>
+</span>
