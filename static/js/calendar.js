@@ -105,6 +105,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (item.description) list.append(detailRow("Description", item.description));
     document.getElementById("detail-notes").textContent = item.notes || "";
+    const reportsButton = document.getElementById("appointment-reports");
+    reportsButton.hidden = item.status !== "completed" || (!canManage && !item.is_assigned);
     details.showModal();
   };
 
@@ -268,6 +270,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("edit-appointment")?.addEventListener("click", prepareEdit);
   document.getElementById("cancel-appointment")?.addEventListener("click", cancelSelected);
   document.getElementById("delete-appointment")?.addEventListener("click", deleteSelected);
+  document.getElementById("appointment-reports")?.addEventListener("click", () => {
+    if (selectedEvent) window.location.href = `/appointments/${encodeURIComponent(selectedEvent.id)}/reports/`;
+  });
   document.getElementById("quick-client")?.addEventListener("click", createQuickClient);
   formElement?.addEventListener("submit", submitAppointment);
 

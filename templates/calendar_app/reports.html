@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Rapports · {{ appointment.title }}{% endblock %}
+{% block page_title %}Rapports du rendez-vous{% endblock %}
+{% block content %}
+  <section class="section-heading">
+    <div><a class="back-inline" href="{% url 'calendar_app:calendar-page' %}">← Calendrier</a><h2>{{ appointment.title }}</h2><p class="muted-text">{{ appointment.start_at|date:'d/m/Y H:i' }} – {{ appointment.end_at|date:'H:i' }} · {{ appointment.get_status_display }}</p></div>
+  </section>
+  {% if can_submit_report %}
+    <section class="form-card data-card report-form-card">
+      <p class="eyebrow">Votre compte rendu</p><h3>Envoyer votre rapport</h3>
+      <p class="form-error"><strong>Attention :</strong> après l’envoi, le rapport ne pourra plus être modifié.</p>
+      <form method="post" class="form-stack">{% csrf_token %}{{ form.non_field_errors }}<p><label for="{{ form.content.id_for_label }}">{{ form.content.label }}</label>{{ form.content }}{% for error in form.content.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</p><button class="button primary" type="submit">Envoyer définitivement</button></form>
+    </section>
+  {% elif own_report %}
+    <p class="message">Votre rapport a été envoyé le {{ own_report.submitted_at|date:'d/m/Y à H:i' }} et ne peut plus être modifié.</p>
+  {% elif appointment.status != 'completed' %}
+    <p class="message">Le rapport sera disponible lorsque le rendez-vous sera terminé.</p>
+  {% endif %}
+  {% if can_manage_calendar and missing_members %}
+    <section class="data-card report-summary"><p class="eyebrow">En attente</p><h3>Rapports manquants</h3><p>{% for member in missing_members %}<span class="status-pill">{{ member.profile.full_name }}</span>{% endfor %}</p></section>
+  {% endif %}
+  <section class="report-list">
+    {% for report in reports %}<article class="data-card report-card"><header><div><p class="eyebrow">Rapport individuel</p><h3>{{ report.author_name }}</h3><small>{{ report.submitted_at|date:'d/m/Y à H:i' }}</small></div><span class="status-pill success">Définitif</span></header><div class="report-content">{{ report.content|linebreaks }}</div></article>{% empty %}<article class="data-card empty-state">Aucun rapport envoyé.</article>{% endfor %}
+  </section>
+{% endblock %}

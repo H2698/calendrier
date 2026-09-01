@@ -13,6 +13,7 @@ FullCalendar et PostgreSQL. La production est publiée sur
 - confidentialité des données client pour les membres non affectés ;
 - clients, équipe, tableau de bord, paramètres et historique d'audit ;
 - notifications internes, Web Push et rappels planifiés ;
+- rapports individuels définitifs après chaque rendez-vous terminé ;
 - actualisation automatique du calendrier toutes les 10 secondes ;
 - interface responsive pour ordinateur, tablette et navigateur mobile.
 
@@ -114,6 +115,23 @@ GitHub sont requis :
 Le traitement est idempotent : un même rappel ne peut pas être envoyé deux
 fois. Le navigateur doit autoriser les notifications et enregistrer une
 souscription Push depuis la page Paramètres.
+
+## Rapports de rendez-vous
+
+Lorsqu'un rendez-vous passe à `Terminé`, chaque membre affecté reçoit une
+demande de rapport et retrouve l'action à effectuer sur son tableau de bord.
+Chaque participant peut envoyer un seul rapport individuel. L'envoi est
+définitif : aucun écran ni endpoint ne permet ensuite de modifier le contenu.
+Le membre consulte uniquement son propre rapport ; l'Administrateur et la
+Gérante consultent tous les rapports du rendez-vous ainsi que la liste des
+participants qui n'ont pas encore répondu.
+
+L'historique enregistre l'auteur, la date et la longueur du rapport sans copier
+son contenu. Si le compte de l'auteur est supprimé définitivement, son nom, son
+adresse e-mail et son rapport restent conservés. Le rapport est lui-même
+conservé lorsque le rendez-vous est archivé depuis le calendrier.
+Le contrôle PostgreSQL réversible s'exécute avec
+`python manage.py shell -c "import runpy; runpy.run_path('tests/smoke_appointment_reports.py')"`.
 
 ## Validation avant publication
 

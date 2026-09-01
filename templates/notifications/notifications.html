@@ -27,7 +27,7 @@
           <span>{{ item.message }}</span>
           <small>{{ item.created_at|date:'d/m/Y à H:i' }}</small>
         </div>
-        {% if item.appointment_id %}<a class="button quiet" href="{% url 'calendar_app:calendar-page' %}">Voir</a>{% endif %}
+        {% if item.appointment_id %}<a class="button quiet" href="{% if item.type == 'report_required' %}{% url 'calendar_app:appointment-reports' item.appointment_id %}{% else %}{% url 'calendar_app:calendar-page' %}{% endif %}">Voir</a>{% endif %}
         {% if not item.is_read %}<button class="button quiet mark-read" type="button">Marquer comme lu</button>{% endif %}
       </article>
     {% empty %}

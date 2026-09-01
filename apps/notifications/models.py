@@ -12,6 +12,7 @@ class Notification(models.Model):
         UPDATED = 'appointment_updated', 'Rendez-vous modifié'
         CANCELLED = 'appointment_cancelled', 'Rendez-vous annulé'
         REMINDER = 'appointment_reminder', 'Rappel rendez-vous'
+        REPORT_REQUIRED = 'report_required', 'Rapport à rédiger'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

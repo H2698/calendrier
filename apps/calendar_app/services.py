@@ -7,7 +7,7 @@ from django.utils import timezone
 from apps.accounts.models import Profile
 from apps.audit.services import log_activity
 from apps.notifications.models import Notification
-from apps.notifications.services import schedule_appointment_notifications
+from apps.notifications.services import schedule_appointment_notifications, schedule_report_notifications
 
 from .models import Appointment, AppointmentMember
 
@@ -134,6 +134,12 @@ def refresh_appointment_statuses(*, now=None):
             },
         )
         counts[new_status] += 1
+        if new_status == Appointment.Status.COMPLETED:
+            Notification.objects.filter(
+                appointment=appointment, type=Notification.Type.REMINDER,
+                sent_at__isnull=True,
+            ).delete()
+            schedule_report_notifications(appointment)
     return {**counts, 'total': counts['confirmed'] + counts['completed']}
 
 
@@ -164,7 +170,13 @@ def create_appointment(*, actor, data, member_ids, force_conflicts=False):
         new_values=appointment_snapshot(appointment),
     )
     schedule_appointment_notifications(appointment, Notification.Type.CREATED)
-    schedule_appointment_notifications(appointment, Notification.Type.REMINDER)
+    if appointment.status == Appointment.Status.COMPLETED:
+        schedule_report_notifications(appointment)
+    else:
+        Notification.objects.filter(
+            appointment=appointment, type=Notification.Type.REPORT_REQUIRED,
+        ).delete()
+        schedule_appointment_notifications(appointment, Notification.Type.REMINDER)
     return appointment, conflicts
 
 
@@ -237,7 +249,17 @@ def update_appointment(
             new_values={'status': new_values['status']},
         )
     schedule_appointment_notifications(appointment, Notification.Type.UPDATED)
-    schedule_appointment_notifications(appointment, Notification.Type.REMINDER)
+    if appointment.status == Appointment.Status.COMPLETED:
+        Notification.objects.filter(
+            appointment=appointment, type=Notification.Type.REMINDER,
+            sent_at__isnull=True,
+        ).delete()
+        schedule_report_notifications(appointment)
+    else:
+        Notification.objects.filter(
+            appointment=appointment, type=Notification.Type.REPORT_REQUIRED,
+        ).delete()
+        schedule_appointment_notifications(appointment, Notification.Type.REMINDER)
     return appointment, conflicts
 
 
@@ -276,7 +298,48 @@ def cancel_appointment(*, actor, appointment):
         sent_at__isnull=True,
     ).delete()
     schedule_appointment_notifications(appointment, Notification.Type.CANCELLED)
+    Notification.objects.filter(
+        appointment=appointment, type=Notification.Type.REPORT_REQUIRED,
+    ).delete()
     return appointment
+
+
+@transaction.atomic
+def submit_appointment_report(*, actor, appointment, content):
+    from .models import AppointmentReport
+
+    appointment = _lock_active_appointment(appointment)
+    if appointment.status != Appointment.Status.COMPLETED:
+        raise ValidationError({'content': 'Le rapport est disponible après la fin du rendez-vous.'})
+    if not appointment.members.filter(pk=actor.pk).exists():
+        raise PermissionDenied
+    if AppointmentReport.objects.filter(appointment=appointment, author=actor).exists():
+        raise ValidationError({'content': 'Votre rapport a déjà été envoyé et ne peut pas être modifié.'})
+    report = AppointmentReport(
+        appointment=appointment, author=actor,
+        author_name=actor.profile.full_name, author_email=actor.profile.email,
+        content=content,
+    )
+    report.full_clean()
+    report.save()
+    report_notifications = Notification.objects.filter(
+        appointment=appointment, user=actor,
+        type=Notification.Type.REPORT_REQUIRED,
+    )
+    report_notifications.filter(sent_at__isnull=True).update(
+        is_read=True, sent_at=timezone.now(),
+    )
+    report_notifications.update(is_read=True)
+    log_activity(
+        actor=actor, action='appointment_report_submitted',
+        entity_type='appointment_report', entity_id=report.pk,
+        new_values={
+            'appointment_id': appointment.pk, 'appointment_title': appointment.title,
+            'author_id': actor.pk, 'submitted_at': report.submitted_at,
+            'content_length': len(report.content), 'immutable': True,
+        },
+    )
+    return report
 
 
 @transaction.atomic

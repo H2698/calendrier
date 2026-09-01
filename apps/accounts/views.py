@@ -101,6 +101,10 @@ def _dashboard_data(user):
         queryset = queryset.filter(members=user)
     today = queryset.filter(start_at__gte=today_start, start_at__lt=tomorrow).distinct()
     upcoming = queryset.filter(start_at__gte=now).distinct()
+    pending_reports = Appointment.objects.filter(
+        deleted_at__isnull=True, status=Appointment.Status.COMPLETED,
+        members=user,
+    ).exclude(reports__author=user).select_related('appointment_type').order_by('-end_at')
     return {
         'kpis': {
             'today': today.count(),
@@ -113,6 +117,8 @@ def _dashboard_data(user):
         },
         'today_appointments': list(today.order_by('start_at')[:10]),
         'upcoming_appointments': list(upcoming.order_by('start_at')[:5]),
+        'pending_reports': list(pending_reports[:5]),
+        'pending_report_count': pending_reports.count(),
     }
 
 

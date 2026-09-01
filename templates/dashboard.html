@@ -13,6 +13,8 @@
     {% endif %}
   </section>
 
+  {% if pending_reports %}<section class="data-card detail-card timeline-card"><p class="eyebrow">Action requise</p><h3>{{ pending_report_count }} rapport{{ pending_report_count|pluralize }} à rédiger</h3>{% for item in pending_reports %}<a class="agenda-row" href="{% url 'calendar_app:appointment-reports' item.id %}"><time>{{ item.end_at|date:'d/m' }}</time><span><strong>{{ item.title }}</strong><small>Envoyer le rapport définitif</small></span></a>{% endfor %}</section>{% endif %}
+
   <section class="kpi-grid" aria-label="Indicateurs du calendrier">
     <article class="kpi-card"><span>Aujourd’hui</span><strong>{{ kpis.today }}</strong><small>Rendez-vous</small></article>
     <article class="kpi-card"><span>Cette semaine</span><strong>{{ kpis.week }}</strong><small>Rendez-vous</small></article>

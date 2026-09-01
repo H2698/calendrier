@@ -164,3 +164,37 @@ class AppointmentMember(models.Model):
 
     def __str__(self):
         return f'{self.appointment} · {self.user}'
+
+
+class AppointmentReport(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    appointment = models.ForeignKey(
+        Appointment, on_delete=models.CASCADE, related_name='reports',
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='appointment_reports',
+    )
+    author_name = models.CharField(max_length=150)
+    author_email = models.EmailField()
+    content = models.TextField(max_length=10000)
+    submitted_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ('submitted_at',)
+        constraints = [models.UniqueConstraint(
+            fields=('appointment', 'author'), name='unique_appointment_report_author',
+        )]
+        indexes = [models.Index(
+            fields=('appointment', 'submitted_at'),
+            name='report_appt_submitted_idx',
+        )]
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError('Un rapport envoyé ne peut pas être modifié.')
+        self.content = self.content.strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.appointment} · {self.author_name}'

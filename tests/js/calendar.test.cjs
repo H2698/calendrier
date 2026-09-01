@@ -82,15 +82,15 @@ function loadCalendar({ href = 'https://agency.test/calendar/', canManage = true
     },
   });
   documentListeners.DOMContentLoaded();
-  const selectAppointment = () => calls.options.eventClick({ event: {
+  const selectAppointment = ({ status = 'cancelled', isAssigned = true } = {}) => calls.options.eventClick({ event: {
     id: 'appointment-id', title: 'Planification',
     start: new Date('2026-09-01T08:00:00Z'), end: new Date('2026-09-01T08:30:00Z'),
     extendedProps: {
-      id: 'appointment-id', status: 'cancelled', members: [], description: '', notes: '',
+      id: 'appointment-id', status, is_assigned: isAssigned, members: [], description: '', notes: '',
       client: null, appointment_type: { id: 'type-id', name: 'Réunion interne' },
     },
   } });
-  return { calls, node, form, selectAppointment };
+  return { calls, node, form, selectAppointment, window };
 }
 
 test('dashboard shortcut opens a fresh form once without creating an appointment', () => {
@@ -174,4 +174,26 @@ test('failed deletion keeps details open and displays a clear error', async () =
 test('ordinary member has no deletion control', () => {
   const { node } = loadCalendar({ canManage: false });
   assert.equal(node('delete-appointment').listeners.click, undefined);
+});
+
+test('completed assigned member can open the immutable reports page', () => {
+  const { node, selectAppointment, window } = loadCalendar({ canManage: false });
+  selectAppointment({ status: 'completed', isAssigned: true });
+  assert.equal(node('appointment-reports').hidden, false);
+  node('appointment-reports').listeners.click();
+  assert.equal(window.location.href, '/appointments/appointment-id/reports/');
+});
+
+test('reports control stays hidden before completion or for an unassigned member', () => {
+  const memberCalendar = loadCalendar({ canManage: false });
+  memberCalendar.selectAppointment({ status: 'confirmed', isAssigned: true });
+  assert.equal(memberCalendar.node('appointment-reports').hidden, true);
+  memberCalendar.selectAppointment({ status: 'completed', isAssigned: false });
+  assert.equal(memberCalendar.node('appointment-reports').hidden, true);
+});
+
+test('manager can consult reports without being assigned to the appointment', () => {
+  const managerCalendar = loadCalendar({ canManage: true });
+  managerCalendar.selectAppointment({ status: 'completed', isAssigned: false });
+  assert.equal(managerCalendar.node('appointment-reports').hidden, false);
 });

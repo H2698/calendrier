@@ -2,11 +2,12 @@ import json
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import ValidationError
+from django.contrib import messages
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Prefetch
 from django.db import transaction
 from django.http import JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.http import require_GET, require_http_methods
@@ -15,7 +16,8 @@ from apps.accounts.models import Profile
 from apps.accounts.permissions import calendar_manager_required
 from apps.clients.models import Client
 
-from .models import Appointment, AppointmentMember, AppointmentType
+from .forms import AppointmentReportForm
+from .models import Appointment, AppointmentMember, AppointmentReport, AppointmentType
 from .recurrence import expand_recurrence
 from .services import (
     AppointmentConflictError,
@@ -25,6 +27,7 @@ from .services import (
     ensure_calendar_manager,
     move_appointment,
     refresh_appointment_statuses,
+    submit_appointment_report,
     update_appointment,
 )
 
@@ -312,3 +315,54 @@ def appointment_delete_api(request, appointment_id):
     except ValidationError as exc:
         return _validation_error(exc)
     return JsonResponse({'data': {'id': str(appointment.id), 'deleted': True}})
+
+
+@login_required
+@require_http_methods(['GET', 'POST'])
+def appointment_reports_page(request, appointment_id):
+    refresh_appointment_statuses()
+    appointment = get_object_or_404(_appointment_queryset(), id=appointment_id)
+    can_manage = request.user.profile.can_manage_calendar
+    is_assigned = appointment.members.filter(pk=request.user.pk).exists()
+    if not can_manage and not is_assigned:
+        raise PermissionDenied
+    reports = AppointmentReport.objects.filter(
+        appointment=appointment,
+    ).select_related('author', 'author__profile')
+    own_report = reports.filter(author=request.user).first()
+    can_submit = (
+        is_assigned and appointment.status == Appointment.Status.COMPLETED
+        and own_report is None
+    )
+    form = AppointmentReportForm(request.POST or None)
+    if request.method == 'POST':
+        if not can_submit:
+            raise PermissionDenied
+        if form.is_valid():
+            try:
+                submit_appointment_report(
+                    actor=request.user, appointment=appointment,
+                    content=form.cleaned_data['content'],
+                )
+            except ValidationError as exc:
+                if hasattr(exc, 'error_dict'):
+                    for field, errors in exc.error_dict.items():
+                        form.add_error(field if field in form.fields else None, errors)
+                else:
+                    form.add_error(None, exc)
+            else:
+                messages.success(request, 'Rapport envoyé définitivement.')
+                return redirect(
+                    'calendar_app:appointment-reports', appointment_id=appointment.pk,
+                )
+    visible_reports = reports if can_manage else reports.filter(author=request.user)
+    reported_ids = reports.exclude(author__isnull=True).values_list('author_id', flat=True)
+    missing_members = (
+        appointment.members.exclude(pk__in=reported_ids).select_related('profile')
+        if can_manage else []
+    )
+    return render(request, 'calendar_app/reports.html', {
+        'appointment': appointment, 'reports': visible_reports,
+        'missing_members': missing_members, 'own_report': own_report,
+        'can_submit_report': can_submit, 'form': form,
+    })

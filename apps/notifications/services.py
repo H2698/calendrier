@@ -36,12 +36,47 @@ def schedule_appointment_notifications(appointment, notification_type=Notificati
         )
 
 
+def schedule_report_notifications(appointment):
+    from apps.calendar_app.models import AppointmentReport
+
+    if appointment.deleted_at or appointment.status != appointment.Status.COMPLETED:
+        return 0
+    eligible_members = appointment.members.filter(
+        is_active=True, profile__is_active=True, profile__deleted_at__isnull=True,
+    )
+    eligible_ids = list(eligible_members.values_list('pk', flat=True))
+    Notification.objects.filter(
+        appointment=appointment, type=Notification.Type.REPORT_REQUIRED,
+    ).exclude(user_id__in=eligible_ids).delete()
+    reported_ids = AppointmentReport.objects.filter(
+        appointment=appointment, author__isnull=False,
+    ).values_list('author_id', flat=True)
+    members = eligible_members.filter(
+        Q(profile__in_app_notifications_enabled=True)
+        | Q(profile__browser_notifications_enabled=True),
+    ).exclude(pk__in=reported_ids)
+    created = 0
+    for member in members:
+        _, was_created = Notification.objects.update_or_create(
+            user=member, appointment=appointment,
+            type=Notification.Type.REPORT_REQUIRED,
+            defaults={
+                'title': 'Rapport à rédiger',
+                'message': f'Rédigez votre rapport pour « {appointment.title} ».',
+                'scheduled_for': timezone.now(), 'sent_at': None, 'is_read': False,
+            },
+        )
+        created += int(was_created)
+    return created
+
+
 def _message(appointment, notification_type):
     labels = {
         Notification.Type.CREATED: 'Un rendez-vous vous a été assigné.',
         Notification.Type.UPDATED: 'Un rendez-vous assigné a été modifié.',
         Notification.Type.CANCELLED: 'Un rendez-vous assigné a été annulé.',
         Notification.Type.REMINDER: 'Votre rendez-vous commence dans 30 minutes.',
+        Notification.Type.REPORT_REQUIRED: 'Votre rapport de rendez-vous est à rédiger.',
     }
     return labels[notification_type]
 
