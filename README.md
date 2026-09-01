@@ -123,6 +123,16 @@ Avec `DEBUG=False` et une clé éphémère longue, exécuter également
 
 ## Exploitation et sauvegardes
 
+L'Administrateur et la Gérante peuvent supprimer un rendez-vous depuis sa
+fenêtre de détail, après confirmation. La suppression archive uniquement
+l'occurrence sélectionnée : elle disparaît du calendrier et des tableaux de
+bord, tandis que ses données et la trace `appointment_deleted` restent dans
+l'historique. Les rappels et notifications non envoyés sont supprimés ; les
+notifications déjà envoyées sont conservées. Les membres ordinaires n'ont pas
+accès au bouton ni à l'endpoint de suppression.
+Le contrôle PostgreSQL réversible s'exécute avec
+`python manage.py shell -c "import runpy; runpy.run_path('tests/smoke_appointment_deletion.py')"`.
+
 À la création d'un membre, le formulaire propose une couleur disponible avec
 un sélecteur visuel et le code hexadécimal. Le mode automatique (activé par
 défaut) revérifie la couleur à l'enregistrement ; une sélection manuelle

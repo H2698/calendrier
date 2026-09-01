@@ -1,7 +1,8 @@
 import json
 from datetime import datetime, timedelta
 
-from django.test import TestCase
+from django.core.exceptions import ValidationError
+from django.test import Client as Browser, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -123,6 +124,9 @@ class CalendarBackendTests(TestCase):
             ),
             self.client.post(
                 reverse('calendar_app:appointment-cancel-api', args=(appointment_id,))
+            ),
+            self.client.post(
+                reverse('calendar_app:appointment-delete-api', args=(appointment_id,))
             ),
         )
 
@@ -282,6 +286,7 @@ class CalendarBackendTests(TestCase):
         self.assertEqual(member_response.status_code, 200)
         self.assertNotContains(member_response, 'Nouveau rendez-vous')
         self.assertNotContains(member_response, 'Private Client')
+        self.assertNotContains(member_response, 'id="delete-appointment"')
         self.assertContains(member_response, 'data-auto-sync-seconds="10"')
 
         self._login(self.admin)
@@ -289,7 +294,139 @@ class CalendarBackendTests(TestCase):
         self.assertContains(admin_response, 'Nouveau rendez-vous')
         self.assertContains(admin_response, 'Private Client')
         self.assertContains(admin_response, 'Modifier')
+        self.assertContains(admin_response, 'id="delete-appointment"')
         self.assertContains(admin_response, 'Créer un client rapide')
+
+        self._login(self.manager)
+        self.assertContains(
+            self.client.get(reverse('calendar_app:calendar-page')),
+            'id="delete-appointment"',
+        )
+
+    def test_admin_and_manager_can_soft_delete_with_complete_audit(self):
+        from apps.notifications.models import Notification
+
+        for actor in (self.admin, self.manager):
+            with self.subTest(role=actor.profile.role):
+                response = self._api_create(
+                    title=f'Delete by {actor.profile.role}',
+                    start_at=(self.start_at + timedelta(days=actor.pk)).isoformat(),
+                    end_at=(self.start_at + timedelta(days=actor.pk, hours=1)).isoformat(),
+                )
+                appointment_id = response.json()['data']['id']
+                appointment = Appointment.objects.get(pk=appointment_id)
+                sent = Notification.objects.filter(appointment=appointment).first()
+                sent.sent_at = timezone.now()
+                sent.save(update_fields=('sent_at',))
+                old_member_ids = list(appointment.members.values_list('pk', flat=True))
+                self._login(actor)
+                deleted = self.client.post(
+                    reverse('calendar_app:appointment-delete-api', args=(appointment_id,))
+                )
+                self.assertEqual(deleted.status_code, 200)
+                self.assertEqual(deleted.json()['data'], {'id': appointment_id, 'deleted': True})
+                appointment.refresh_from_db()
+                self.assertIsNotNone(appointment.deleted_at)
+                self.assertEqual(appointment.updated_by, actor)
+                self.assertEqual(
+                    list(appointment.members.values_list('pk', flat=True)), old_member_ids,
+                )
+                self.assertTrue(Notification.objects.filter(pk=sent.pk).exists())
+                self.assertFalse(Notification.objects.filter(
+                    appointment=appointment, sent_at__isnull=True,
+                ).exists())
+                audit = ActivityLog.objects.get(
+                    action='appointment_deleted', entity_id=appointment_id,
+                )
+                self.assertEqual(audit.user, actor)
+                self.assertEqual(audit.old_values['title'], f'Delete by {actor.profile.role}')
+                self.assertEqual(audit.old_values['member_ids'], old_member_ids)
+                self.assertIsNotNone(audit.new_values['deleted_at'])
+                self.assertContains(
+                    self.client.get(reverse('audit:history')),
+                    'Rendez-vous supprimé',
+                )
+                self.assertEqual(
+                    self.client.get(
+                        reverse('calendar_app:appointment-detail-api', args=(appointment_id,))
+                    ).status_code,
+                    404,
+                )
+
+    def test_deleted_appointment_disappears_from_calendar_and_dashboard(self):
+        response = self._api_create()
+        appointment_id = response.json()['data']['id']
+        self.client.post(
+            reverse('calendar_app:appointment-delete-api', args=(appointment_id,))
+        )
+        calendar = self.client.get(reverse('calendar_app:calendar-api'), {
+            'start': (self.start_at - timedelta(days=1)).isoformat(),
+            'end': (self.start_at + timedelta(days=1)).isoformat(),
+        })
+        self.assertEqual(calendar.json()['data'], [])
+        dashboard = self.client.get(reverse('dashboard'))
+        self.assertNotContains(dashboard, 'Private strategy meeting')
+        self.assertTrue(Appointment.objects.filter(pk=appointment_id).exists())
+
+    def test_delete_requires_post_csrf_and_an_existing_active_appointment(self):
+        response = self._api_create()
+        appointment_id = response.json()['data']['id']
+        url = reverse('calendar_app:appointment-delete-api', args=(appointment_id,))
+        self.assertEqual(self.client.get(url).status_code, 405)
+
+        csrf_browser = Browser(enforce_csrf_checks=True)
+        csrf_browser.force_login(self.admin, backend='apps.accounts.backends.EmailBackend')
+        self.assertEqual(csrf_browser.post(url).status_code, 403)
+        self.assertIsNone(Appointment.objects.get(pk=appointment_id).deleted_at)
+
+        self.assertEqual(self.client.post(url).status_code, 200)
+        self.assertEqual(self.client.post(url).status_code, 404)
+
+    def test_deleting_cancelled_occurrence_preserves_other_recurrences(self):
+        response = self._api_create(
+            recurrence={
+                'frequency': 'daily', 'interval_value': 1,
+                'end_date': (self.start_at + timedelta(days=2)).date().isoformat(),
+            }
+        )
+        appointment_id = response.json()['data']['id']
+        self.client.post(
+            reverse('calendar_app:appointment-cancel-api', args=(appointment_id,))
+        )
+        self.client.post(
+            reverse('calendar_app:appointment-delete-api', args=(appointment_id,))
+        )
+        self.assertEqual(Appointment.objects.filter(deleted_at__isnull=True).count(), 2)
+        deleted = Appointment.objects.get(pk=appointment_id)
+        self.assertEqual(deleted.status, Appointment.Status.CANCELLED)
+        self.assertIsNotNone(deleted.deleted_at)
+
+    def test_stale_edit_and_second_service_delete_cannot_change_deleted_record(self):
+        from .services import delete_appointment, update_appointment
+
+        response = self._api_create()
+        appointment = Appointment.objects.get(pk=response.json()['data']['id'])
+        stale = Appointment.objects.get(pk=appointment.pk)
+        delete_appointment(actor=self.admin, appointment=appointment)
+        with self.assertRaises(ValidationError):
+            delete_appointment(actor=self.manager, appointment=stale)
+        with self.assertRaises(ValidationError):
+            update_appointment(actor=self.manager, appointment=stale, data={'title': 'Restored'})
+        appointment.refresh_from_db()
+        self.assertNotEqual(appointment.title, 'Restored')
+        self.assertIsNotNone(appointment.deleted_at)
+
+    def test_delete_rolls_back_when_audit_write_fails(self):
+        from unittest.mock import patch
+        from .services import delete_appointment
+
+        response = self._api_create()
+        appointment = Appointment.objects.get(pk=response.json()['data']['id'])
+        with patch('apps.calendar_app.services.log_activity', side_effect=RuntimeError('audit failed')):
+            with self.assertRaises(RuntimeError):
+                delete_appointment(actor=self.admin, appointment=appointment)
+        appointment.refresh_from_db()
+        self.assertIsNone(appointment.deleted_at)
 
     def test_calendar_sync_payload_keeps_unassigned_member_data_private(self):
         self._api_create()

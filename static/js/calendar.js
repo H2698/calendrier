@@ -223,6 +223,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const deleteSelected = async () => {
+    if (!selectedEvent) return;
+    const confirmation = `Supprimer « ${selectedEvent.title} » du calendrier ?\nCette action concerne uniquement ce rendez-vous et restera visible dans l’historique.`;
+    if (!confirm(confirmation)) return;
+    try {
+      await apiFetch(`/api/appointments/${selectedEvent.id}/delete/`, {method:"POST"});
+      details.close();
+      selectedEvent = null;
+      calendar.refetchEvents();
+    } catch (_) {
+      alert("Suppression impossible.");
+    }
+  };
+
   const createQuickClient = async () => {
     const name = prompt("Nom du nouveau client :")?.trim();
     if (!name) return;
@@ -253,6 +267,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("new-appointment")?.addEventListener("click", prepareCreate);
   document.getElementById("edit-appointment")?.addEventListener("click", prepareEdit);
   document.getElementById("cancel-appointment")?.addEventListener("click", cancelSelected);
+  document.getElementById("delete-appointment")?.addEventListener("click", deleteSelected);
   document.getElementById("quick-client")?.addEventListener("click", createQuickClient);
   formElement?.addEventListener("submit", submitAppointment);
 

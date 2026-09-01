@@ -21,6 +21,7 @@ from .services import (
     AppointmentConflictError,
     cancel_appointment,
     create_appointment,
+    delete_appointment,
     ensure_calendar_manager,
     move_appointment,
     update_appointment,
@@ -298,3 +299,14 @@ def appointment_cancel_api(request, appointment_id):
     cancel_appointment(actor=request.user, appointment=appointment)
     appointment = _appointment_queryset().get(id=appointment.id)
     return JsonResponse({'data': _appointment_payload(appointment, request.user)})
+
+
+@require_http_methods(['POST'])
+@calendar_manager_required
+def appointment_delete_api(request, appointment_id):
+    appointment = get_object_or_404(_appointment_queryset(), id=appointment_id)
+    try:
+        delete_appointment(actor=request.user, appointment=appointment)
+    except ValidationError as exc:
+        return _validation_error(exc)
+    return JsonResponse({'data': {'id': str(appointment.id), 'deleted': True}})

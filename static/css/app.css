@@ -133,6 +133,7 @@ button, input { font: inherit; }
 .form-field input, .form-field textarea { width: 100%; min-height: 46px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 11px; outline: none; resize: vertical; }
 .form-field input:focus, .form-field textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(91, 77, 247, 0.1); }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 6px; }
+.appointment-actions { flex-wrap: wrap; }
 .calendar-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 26px 0 18px; }
 .calendar-filters { display: flex; flex-wrap: wrap; gap: 9px; }
 .sync-status { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; color: var(--muted); font-size: .8rem; }

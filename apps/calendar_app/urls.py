@@ -24,4 +24,9 @@ urlpatterns = [
         views.appointment_cancel_api,
         name='appointment-cancel-api',
     ),
+    path(
+        'api/appointments/<uuid:appointment_id>/delete/',
+        views.appointment_delete_api,
+        name='appointment-delete-api',
+    ),
 ]

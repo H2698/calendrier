@@ -16,6 +16,7 @@ ACTION_LABELS = {
     'appointment_updated': 'Rendez-vous modifié',
     'appointment_moved': 'Rendez-vous déplacé',
     'appointment_cancelled': 'Rendez-vous annulé',
+    'appointment_deleted': 'Rendez-vous supprimé',
     'appointment_member_assigned': 'Membre affecté',
     'appointment_member_unassigned': 'Membre désaffecté',
     'appointment_status_changed': 'Statut du rendez-vous modifié',

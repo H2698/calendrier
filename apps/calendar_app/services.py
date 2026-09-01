@@ -88,6 +88,15 @@ def appointment_snapshot(appointment):
     }
 
 
+def _lock_active_appointment(appointment):
+    try:
+        return Appointment.objects.select_for_update().get(
+            pk=appointment.pk, deleted_at__isnull=True,
+        )
+    except Appointment.DoesNotExist as exc:
+        raise ValidationError({'appointment': 'Ce rendez-vous a déjà été supprimé.'}) from exc
+
+
 @transaction.atomic
 def create_appointment(*, actor, data, member_ids, force_conflicts=False):
     ensure_calendar_manager(actor)
@@ -130,6 +139,7 @@ def update_appointment(
     audit_action='appointment_updated',
 ):
     ensure_calendar_manager(actor)
+    appointment = _lock_active_appointment(appointment)
     old_values = appointment_snapshot(appointment)
     for field in EDITABLE_FIELDS:
         if field in data:
@@ -206,6 +216,7 @@ def move_appointment(*, actor, appointment, start_at, end_at, force_conflicts=Fa
 @transaction.atomic
 def cancel_appointment(*, actor, appointment):
     ensure_calendar_manager(actor)
+    appointment = _lock_active_appointment(appointment)
     old_values = appointment_snapshot(appointment)
     appointment.status = Appointment.Status.CANCELLED
     appointment.cancelled_at = timezone.now()
@@ -225,4 +236,27 @@ def cancel_appointment(*, actor, appointment):
         sent_at__isnull=True,
     ).delete()
     schedule_appointment_notifications(appointment, Notification.Type.CANCELLED)
+    return appointment
+
+
+@transaction.atomic
+def delete_appointment(*, actor, appointment):
+    """Soft-delete one occurrence while retaining its audit trail."""
+    ensure_calendar_manager(actor)
+    appointment = _lock_active_appointment(appointment)
+    old_values = appointment_snapshot(appointment)
+    appointment.deleted_at = timezone.now()
+    appointment.updated_by = actor
+    appointment.save(update_fields=('deleted_at', 'updated_by', 'updated_at'))
+    log_activity(
+        actor=actor,
+        action='appointment_deleted',
+        entity_type='appointment',
+        entity_id=appointment.id,
+        old_values=old_values,
+        new_values={'deleted_at': appointment.deleted_at},
+    )
+    Notification.objects.filter(
+        appointment=appointment, sent_at__isnull=True,
+    ).delete()
     return appointment
