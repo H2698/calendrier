@@ -73,7 +73,14 @@ def send_due_notifications_api(request):
     supplied = request.headers.get('Authorization', '').removeprefix('Bearer ').strip()
     if not expected or not hmac.compare_digest(supplied, expected):
         return JsonResponse({'error': 'forbidden'}, status=403)
-    return JsonResponse({'ok': True, 'processed': dispatch_due_notifications()})
+    from apps.calendar_app.services import refresh_appointment_statuses
+
+    status_updates = refresh_appointment_statuses()
+    return JsonResponse({
+        'ok': True,
+        'processed': dispatch_due_notifications(),
+        'status_updates': status_updates,
+    })
 
 
 @require_http_methods(['GET', 'POST', 'DELETE'])

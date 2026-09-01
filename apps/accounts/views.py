@@ -35,6 +35,7 @@ from .services import (
 )
 from apps.calendar_app.models import Appointment
 from apps.calendar_app.models import AppointmentType
+from apps.calendar_app.services import refresh_appointment_statuses
 from apps.audit.services import log_activity
 from apps.core.models import AgencySettings
 
@@ -86,6 +87,7 @@ def dashboard(request):
 
 
 def _dashboard_data(user):
+    refresh_appointment_statuses()
     now = timezone.localtime()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     tomorrow = today_start + timedelta(days=1)

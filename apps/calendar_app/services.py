@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from apps.accounts.models import Profile
@@ -95,6 +96,45 @@ def _lock_active_appointment(appointment):
         )
     except Appointment.DoesNotExist as exc:
         raise ValidationError({'appointment': 'Ce rendez-vous a déjà été supprimé.'}) from exc
+
+
+@transaction.atomic
+def refresh_appointment_statuses(*, now=None):
+    """Apply forward-only, time-based status transitions and audit each one."""
+    transition_at = now or timezone.now()
+    candidates = Appointment.objects.select_for_update().filter(
+        deleted_at__isnull=True,
+    ).filter(
+        Q(status=Appointment.Status.PLANNED, start_at__lte=transition_at)
+        | Q(status=Appointment.Status.CONFIRMED, end_at__lte=transition_at)
+    ).prefetch_related('members')
+    counts = {'confirmed': 0, 'completed': 0}
+    for appointment in candidates:
+        old_status = appointment.status
+        new_status = (
+            Appointment.Status.COMPLETED
+            if appointment.end_at <= transition_at
+            else Appointment.Status.CONFIRMED
+        )
+        if old_status == new_status:
+            continue
+        appointment.status = new_status
+        appointment.updated_by = None
+        appointment.save(update_fields=('status', 'updated_by', 'updated_at'))
+        log_activity(
+            actor=None,
+            action='appointment_status_changed',
+            entity_type='appointment',
+            entity_id=appointment.id,
+            old_values={'status': old_status},
+            new_values={
+                'status': new_status,
+                'automatic': True,
+                'transition_at': transition_at,
+            },
+        )
+        counts[new_status] += 1
+    return {**counts, 'total': counts['confirmed'] + counts['completed']}
 
 
 @transaction.atomic

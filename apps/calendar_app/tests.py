@@ -2,7 +2,7 @@ import json
 from datetime import datetime, timedelta
 
 from django.core.exceptions import ValidationError
-from django.test import Client as Browser, TestCase
+from django.test import Client as Browser, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -56,7 +56,9 @@ class CalendarBackendTests(TestCase):
                 'notes': 'Sensitive client note',
             },
         )
-        cls.start_at = timezone.make_aware(datetime(2026, 9, 1, 10, 0))
+        cls.start_at = (timezone.now() + timedelta(days=10)).replace(
+            minute=0, second=0, microsecond=0,
+        )
 
     def _login(self, user):
         self.client.force_login(user, backend='apps.accounts.backends.EmailBackend')
@@ -416,6 +418,7 @@ class CalendarBackendTests(TestCase):
         self.assertNotEqual(appointment.title, 'Restored')
         self.assertIsNotNone(appointment.deleted_at)
 
+
     def test_delete_rolls_back_when_audit_write_fails(self):
         from unittest.mock import patch
         from .services import delete_appointment
@@ -473,3 +476,81 @@ class CalendarBackendTests(TestCase):
         edited.refresh_from_db()
         self.assertEqual(appointments[0].title, 'Private strategy meeting')
         self.assertEqual(edited.title, 'Occurrence modifiée')
+
+
+@override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
+class AutomaticAppointmentStatusTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = create_user_account(
+            email='automatic-status-admin@example.test', password='automatic-status-password',
+            full_name='Automatic Status Admin', role=Profile.Role.ADMIN,
+        )
+        cls.kind = AppointmentType.objects.create(name='Automatic Status', created_by=cls.admin)
+        cls.reference = timezone.now()
+
+    def appointment(self, *, title, status, start_delta, end_delta, deleted=False):
+        return Appointment.objects.create(
+            title=title, status=status, appointment_type=self.kind,
+            start_at=self.reference + start_delta, end_at=self.reference + end_delta,
+            created_by=self.admin, updated_by=self.admin,
+            deleted_at=self.reference if deleted else None,
+        )
+
+    def test_all_status_rules_boundaries_audit_and_idempotency(self):
+        from .services import refresh_appointment_statuses
+
+        future = self.appointment(title='Future', status='planned', start_delta=timedelta(minutes=1), end_delta=timedelta(hours=1))
+        at_start = self.appointment(title='At start', status='planned', start_delta=timedelta(), end_delta=timedelta(hours=1))
+        finished = self.appointment(title='Finished', status='planned', start_delta=-timedelta(hours=2), end_delta=-timedelta(hours=1))
+        at_end = self.appointment(title='At end', status='confirmed', start_delta=-timedelta(hours=1), end_delta=timedelta())
+        unchanged = {
+            status: self.appointment(title=f'Unchanged {status}', status=status, start_delta=-timedelta(hours=2), end_delta=-timedelta(hours=1))
+            for status in ('cancelled', 'postponed', 'completed')
+        }
+        deleted = self.appointment(title='Deleted', status='planned', start_delta=-timedelta(hours=2), end_delta=-timedelta(hours=1), deleted=True)
+
+        self.assertEqual(
+            refresh_appointment_statuses(now=self.reference),
+            {'confirmed': 1, 'completed': 2, 'total': 3},
+        )
+        expected = {
+            future: 'planned', at_start: 'confirmed', finished: 'completed',
+            at_end: 'completed', deleted: 'planned',
+            **{appointment: status for status, appointment in unchanged.items()},
+        }
+        for appointment, status in expected.items():
+            appointment.refresh_from_db()
+            self.assertEqual(appointment.status, status)
+        transitions = ActivityLog.objects.filter(
+            action='appointment_status_changed', new_values__automatic=True,
+        )
+        self.assertEqual(transitions.count(), 3)
+        for transition in transitions:
+            self.assertIsNone(transition.user_id)
+            self.assertEqual(transition.new_values['transition_at'], self.reference.isoformat())
+        self.assertEqual(refresh_appointment_statuses(now=self.reference)['total'], 0)
+        self.assertEqual(transitions.count(), 3)
+
+    def test_confirmed_future_status_never_moves_back(self):
+        from .services import refresh_appointment_statuses
+
+        appointment = self.appointment(title='Future confirmed', status='confirmed', start_delta=timedelta(hours=1), end_delta=timedelta(hours=2))
+        self.assertEqual(refresh_appointment_statuses(now=self.reference)['total'], 0)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, 'confirmed')
+
+    def test_calendar_and_dashboard_apply_pending_transitions(self):
+        appointment = self.appointment(title='Calendar refresh', status='planned', start_delta=-timedelta(days=1), end_delta=-timedelta(hours=1))
+        self.client.force_login(self.admin, backend='apps.accounts.backends.EmailBackend')
+        response = self.client.get(reverse('calendar_app:calendar-api'), {
+            'start': (self.reference - timedelta(days=2)).isoformat(),
+            'end': (self.reference + timedelta(days=2)).isoformat(),
+        })
+        self.assertEqual(response.status_code, 200)
+        appointment.refresh_from_db()
+        self.assertEqual(appointment.status, 'completed')
+        second = self.appointment(title='Dashboard refresh', status='planned', start_delta=-timedelta(days=1), end_delta=-timedelta(hours=1))
+        self.assertEqual(self.client.get(reverse('dashboard')).status_code, 200)
+        second.refresh_from_db()
+        self.assertEqual(second.status, 'completed')

@@ -93,6 +93,17 @@ automatisations doit être stocké uniquement dans GitHub Actions sous
 
 ## Rappels et Web Push
 
+Les statuts avancent automatiquement sans retour arrière : un rendez-vous
+`Planifié` devient `Confirmé` à son heure de début, puis `Terminé` à son heure
+de fin. Si le traitement découvre après coup un rendez-vous planifié déjà fini,
+il passe directement à `Terminé`. Les statuts `Annulé`, `Reporté` et `Terminé`
+ne sont jamais modifiés automatiquement. Chaque transition est auditée comme
+une action système. Le workflow de cinq minutes assure le traitement en arrière-
+plan ; l'ouverture du calendrier ou du dashboard applique aussi immédiatement
+les transitions en attente.
+Le contrôle PostgreSQL réversible s'exécute avec
+`python manage.py shell -c "import runpy; runpy.run_path('tests/smoke_automatic_statuses.py')"`.
+
 Le workflow `.github/workflows/notifications.yml` appelle toutes les cinq
 minutes l'endpoint protégé `/api/cron/send-due-notifications/`. Deux secrets
 GitHub sont requis :

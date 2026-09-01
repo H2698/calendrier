@@ -316,8 +316,11 @@ class NotificationTests(TestCase):
         )
 
     @override_settings(CRON_SECRET='test-cron-secret-value')
+    @patch('apps.calendar_app.services.refresh_appointment_statuses', return_value={
+        'confirmed': 1, 'completed': 2, 'total': 3,
+    })
     @patch('apps.notifications.views.dispatch_due_notifications', return_value=3)
-    def test_scheduler_endpoint_requires_bearer_secret(self, dispatch_mock):
+    def test_scheduler_endpoint_requires_bearer_secret(self, dispatch_mock, status_mock):
         url = reverse('notifications:send-due-notifications')
         self.assertEqual(self.client.get(url).status_code, 403)
         self.assertFalse(dispatch_mock.called)
@@ -328,4 +331,6 @@ class NotificationTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['processed'], 3)
+        self.assertEqual(response.json()['status_updates']['total'], 3)
         dispatch_mock.assert_called_once()
+        status_mock.assert_called_once()

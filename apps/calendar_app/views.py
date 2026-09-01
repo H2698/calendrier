@@ -24,6 +24,7 @@ from .services import (
     delete_appointment,
     ensure_calendar_manager,
     move_appointment,
+    refresh_appointment_statuses,
     update_appointment,
 )
 
@@ -186,6 +187,7 @@ def appointment_types_api(request):
 def calendar_api(request):
     if not request.user.is_authenticated:
         return JsonResponse({'error': 'authentication_required'}, status=401)
+    refresh_appointment_statuses()
     try:
         start_at = _datetime(request.GET.get('start'), 'start')
         end_at = _datetime(request.GET.get('end'), 'end')
