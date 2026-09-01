@@ -58,7 +58,6 @@ class Appointment(models.Model):
         CONFIRMED = 'confirmed', 'Confirmé'
         COMPLETED = 'completed', 'Terminé'
         CANCELLED = 'cancelled', 'Annulé'
-        POSTPONED = 'postponed', 'Reporté'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client = models.ForeignKey(

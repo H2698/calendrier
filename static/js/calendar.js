@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const syncStatus = document.getElementById("calendar-sync-status");
   const csrf = document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
   const autoSyncMilliseconds = Math.max(5, Number(root.dataset.autoSyncSeconds) || 10) * 1000;
-  const statusLabels = {planned:"Planifié", confirmed:"Confirmé", completed:"Terminé", cancelled:"Annulé", postponed:"Reporté"};
+  const statusLabels = {planned:"Planifié", confirmed:"Confirmé", completed:"Terminé", cancelled:"Annulé"};
   const mobileCalendar = window.innerWidth < 620;
   let selectedEvent = null;
 

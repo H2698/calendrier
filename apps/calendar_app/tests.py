@@ -305,6 +305,16 @@ class CalendarBackendTests(TestCase):
             'id="delete-appointment"',
         )
 
+    def test_postponed_status_is_removed_from_ui_and_api(self):
+        self._login(self.admin)
+        page = self.client.get(reverse('calendar_app:calendar-page'))
+        self.assertNotContains(page, 'Reporté')
+        self.assertNotContains(page, 'value="postponed"')
+
+        response = self._api_create(status='postponed')
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(Appointment.objects.filter(status='postponed').exists())
+
     def test_admin_and_manager_can_soft_delete_with_complete_audit(self):
         from apps.notifications.models import Notification
 
@@ -506,7 +516,7 @@ class AutomaticAppointmentStatusTests(TestCase):
         at_end = self.appointment(title='At end', status='confirmed', start_delta=-timedelta(hours=1), end_delta=timedelta())
         unchanged = {
             status: self.appointment(title=f'Unchanged {status}', status=status, start_delta=-timedelta(hours=2), end_delta=-timedelta(hours=1))
-            for status in ('cancelled', 'postponed', 'completed')
+            for status in ('cancelled', 'completed')
         }
         deleted = self.appointment(title='Deleted', status='planned', start_delta=-timedelta(hours=2), end_delta=-timedelta(hours=1), deleted=True)
 

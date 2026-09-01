@@ -22,7 +22,6 @@
         <option value="">Tous les statuts</option>
         <option value="planned">Planifié</option><option value="confirmed">Confirmé</option>
         <option value="completed">Terminé</option><option value="cancelled">Annulé</option>
-        <option value="postponed">Reporté</option>
       </select>
     </div>
     <span class="sync-status" id="calendar-sync-status" aria-live="polite">
@@ -54,7 +53,7 @@
         <div class="form-field"><label for="appointment-type">Type</label><select id="appointment-type" name="appointment_type_id" required>{% for type in appointment_types %}<option value="{{ type.id }}">{{ type.name }}</option>{% endfor %}</select></div>
         <div class="form-field"><label for="appointment-start">Début</label><input id="appointment-start" name="start_at" type="datetime-local" required></div>
         <div class="form-field"><label for="appointment-end">Fin</label><input id="appointment-end" name="end_at" type="datetime-local" required></div>
-        <div class="form-field"><label for="appointment-status">Statut</label><select id="appointment-status" name="status"><option value="planned">Planifié</option><option value="confirmed">Confirmé</option><option value="completed">Terminé</option><option value="postponed">Reporté</option></select></div>
+        <div class="form-field"><label for="appointment-status">Statut</label><select id="appointment-status" name="status"><option value="planned">Planifié</option><option value="confirmed">Confirmé</option><option value="completed">Terminé</option></select></div>
         <div class="form-field"><label for="appointment-recurrence">Récurrence</label><select id="appointment-recurrence" name="recurrence_frequency"><option value="">Aucune</option><option value="daily">Chaque jour</option><option value="weekly">Chaque semaine</option><option value="monthly">Chaque mois</option></select></div>
         <div class="form-field"><label for="recurrence-end">Fin de récurrence</label><input id="recurrence-end" name="recurrence_end_date" type="date"></div>
         <fieldset class="form-field member-field"><legend>Membres assignés</legend>{% for member in team_members %}<label class="check-option"><input type="checkbox" name="member_ids" value="{{ member.id }}"><span class="member-dot" style="--dot:{{ member.profile.calendar_color }}"></span>{{ member.profile.full_name }}</label>{% endfor %}</fieldset>

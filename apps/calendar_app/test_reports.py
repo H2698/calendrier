@@ -189,7 +189,7 @@ class AppointmentReportTests(TestCase):
         update_appointment(
             actor=self.manager, appointment=self.appointment,
             data={
-                'status': Appointment.Status.POSTPONED,
+                'status': Appointment.Status.PLANNED,
                 'start_at': future_start,
                 'end_at': future_start + timedelta(hours=1),
             },

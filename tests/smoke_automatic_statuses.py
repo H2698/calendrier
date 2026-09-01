@@ -39,7 +39,7 @@ def verify():
         confirmed_finished = create('confirmed', -timedelta(hours=2), timedelta())
         protected = [
             create(status, -timedelta(hours=2), -timedelta(hours=1))
-            for status in ('cancelled', 'postponed', 'completed')
+            for status in ('cancelled', 'completed')
         ]
         deleted = create('planned', -timedelta(hours=2), -timedelta(hours=1), deleted=True)
         result = refresh_appointment_statuses(now=reference)

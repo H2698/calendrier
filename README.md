@@ -97,7 +97,7 @@ automatisations doit être stocké uniquement dans GitHub Actions sous
 Les statuts avancent automatiquement sans retour arrière : un rendez-vous
 `Planifié` devient `Confirmé` à son heure de début, puis `Terminé` à son heure
 de fin. Si le traitement découvre après coup un rendez-vous planifié déjà fini,
-il passe directement à `Terminé`. Les statuts `Annulé`, `Reporté` et `Terminé`
+il passe directement à `Terminé`. Les statuts `Annulé` et `Terminé`
 ne sont jamais modifiés automatiquement. Chaque transition est auditée comme
 une action système. Le workflow de cinq minutes assure le traitement en arrière-
 plan ; l'ouverture du calendrier ou du dashboard applique aussi immédiatement
