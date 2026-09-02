@@ -9,6 +9,7 @@ app_name = 'accounts'
 
 urlpatterns = [
     path('settings/', views.settings_page, name='settings'),
+    path('settings/data-setup/', views.initial_data_setup_page, name='initial-data-setup'),
     path('team/', views.team_page, name='team'),
     path('team/<int:user_id>/', views.team_member_page, name='team-member'),
     path('team/<int:user_id>/delete/', views.team_member_delete_page, name='team-member-delete'),

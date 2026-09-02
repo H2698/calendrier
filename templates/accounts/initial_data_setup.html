@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block title %}Setup des données · Agency Calendar{% endblock %}
+{% block page_title %}Setup des données{% endblock %}
+
+{% block content %}
+  <section class="section-heading setup-heading">
+    <div>
+      <small class="eyebrow">Administrateur uniquement</small>
+      <h2>Configuration initiale des données</h2>
+      <p class="muted-text">Préparez les données essentielles de l’agence avant de commencer à utiliser le calendrier.</p>
+    </div>
+    {% if agency_settings.setup_completed_at %}<span class="status-pill success">Dernier setup : {{ agency_settings.setup_completed_at|date:'d/m/Y à H:i' }}</span>{% endif %}
+  </section>
+
+  <section class="data-card database-safe-note">
+    <div><small class="eyebrow">Base de données</small><h3>{{ database_label }} connectée</h3></div>
+    <p>Les identifiants et l’adresse de connexion restent protégés dans les variables du serveur. Ils ne sont jamais affichés ni enregistrés par cette page.</p>
+  </section>
+
+  <div class="setup-status-grid" aria-label="Résumé des données">
+    <article class="data-card setup-status-card"><span>Équipe</span><strong>{{ data_counts.team }}</strong><a href="{% url 'accounts:team' %}">Gérer les membres</a></article>
+    <article class="data-card setup-status-card"><span>Clients</span><strong>{{ data_counts.clients }}</strong><a href="{% url 'clients:list' %}">Gérer les clients</a></article>
+    <article class="data-card setup-status-card"><span>Types actifs</span><strong>{{ data_counts.appointment_types }}</strong><a href="{% url 'accounts:settings' %}">Gérer les types</a></article>
+    <article class="data-card setup-status-card"><span>Rendez-vous</span><strong>{{ data_counts.appointments }}</strong><a href="{% url 'calendar_app:calendar-page' %}">Ouvrir le calendrier</a></article>
+  </div>
+
+  <section class="data-card setup-form-card">
+    <small class="eyebrow">Étape principale</small>
+    <h3>Agence et données calendrier</h3>
+    <p class="muted-text">L’enregistrement met à jour l’agence, initialise les types indiqués et réactive ceux qui existaient déjà. Aucune donnée existante n’est supprimée.</p>
+    <form method="post" class="form-stack setup-form" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}<div class="form-error">{{ form.non_field_errors }}</div>{% endif %}
+      {% for field in form %}
+        <p class="{% if field.name == 'appointment_types' %}setup-field-wide{% endif %}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<small class="muted-text">{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        </p>
+      {% endfor %}
+      <div class="setup-actions setup-field-wide">
+        <a class="button secondary" href="{% url 'accounts:settings' %}">Retour aux paramètres</a>
+        <button class="button primary" type="submit">Enregistrer le setup</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

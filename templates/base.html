@@ -33,6 +33,7 @@
         </a>
         {% if current_role != 'member' %}<a class="nav-link" href="{% url 'audit:history' %}">Historique</a>{% endif %}
         <a class="nav-link" href="{% url 'accounts:settings' %}">Paramètres</a>
+        {% if is_agency_admin %}<a class="nav-link" href="{% url 'accounts:initial-data-setup' %}">Setup données</a>{% endif %}
       </nav>
       <div class="sidebar-user">
         <span class="avatar" style="--avatar-color: {{ user.profile.calendar_color }}">

@@ -8,6 +8,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.views import LoginView
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import connection, transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -17,6 +18,7 @@ from .forms import (
     AgencySettingsForm,
     AppointmentTypeSettingsForm,
     EmailAuthenticationForm,
+    InitialDataSetupForm,
     NotificationSettingsForm,
     ProfileSettingsForm,
     TeamMemberEditForm,
@@ -37,6 +39,7 @@ from apps.calendar_app.models import Appointment
 from apps.calendar_app.models import AppointmentType
 from apps.calendar_app.services import refresh_appointment_statuses
 from apps.audit.services import log_activity
+from apps.clients.models import Client
 from apps.core.models import AgencySettings
 
 
@@ -423,3 +426,81 @@ def settings_page(request):
             'agency_settings': agency_settings,
         },
     )
+
+
+@require_http_methods(['GET', 'POST'])
+@login_required
+@admin_required
+def initial_data_setup_page(request):
+    agency_settings = AgencySettings.load()
+    original_settings = {
+        'agency_name': agency_settings.agency_name,
+        'logo_url': agency_settings.logo_url,
+        'timezone': agency_settings.timezone,
+        'reminder_minutes': agency_settings.reminder_minutes,
+        'setup_completed_at': agency_settings.setup_completed_at,
+    }
+    active_types = AppointmentType.objects.filter(is_active=True).order_by('name')
+    initial_types = '\n'.join(active_types.values_list('name', flat=True))
+    form = InitialDataSetupForm(
+        request.POST if request.method == 'POST' else None,
+        instance=agency_settings,
+        initial={'appointment_types': initial_types},
+    )
+    if request.method == 'POST' and form.is_valid():
+        old_values = {
+            **original_settings,
+            'active_type_count': active_types.count(),
+        }
+        with transaction.atomic():
+            record = form.save(commit=False)
+            record.updated_by = request.user
+            record.setup_completed_at = timezone.now()
+            record.save()
+            initialized_types = []
+            for name in form.cleaned_data['appointment_types']:
+                appointment_type = AppointmentType.objects.filter(
+                    name__iexact=name,
+                ).first()
+                if appointment_type:
+                    if not appointment_type.is_active:
+                        appointment_type.is_active = True
+                        appointment_type.save(update_fields=('is_active', 'updated_at'))
+                else:
+                    appointment_type = AppointmentType.objects.create(
+                        name=name, created_by=request.user,
+                    )
+                initialized_types.append(appointment_type.name)
+            log_activity(
+                actor=request.user,
+                action='initial_data_setup_saved',
+                entity_type='agency_settings',
+                entity_id=record.pk,
+                old_values=old_values,
+                new_values={
+                    'agency_name': record.agency_name,
+                    'logo_url': record.logo_url,
+                    'timezone': record.timezone,
+                    'reminder_minutes': record.reminder_minutes,
+                    'appointment_types': initialized_types,
+                    'setup_completed_at': record.setup_completed_at,
+                },
+            )
+        messages.success(request, 'Configuration initiale des données enregistrée.')
+        return redirect('accounts:initial-data-setup')
+
+    database_label = {
+        'postgresql': 'PostgreSQL',
+        'sqlite': 'SQLite',
+    }.get(connection.vendor, connection.vendor.title())
+    return render(request, 'accounts/initial_data_setup.html', {
+        'form': form,
+        'agency_settings': agency_settings,
+        'database_label': database_label,
+        'data_counts': {
+            'team': _team_queryset().count(),
+            'clients': Client.active.count(),
+            'appointment_types': AppointmentType.objects.filter(is_active=True).count(),
+            'appointments': Appointment.objects.filter(deleted_at__isnull=True).count(),
+        },
+    })

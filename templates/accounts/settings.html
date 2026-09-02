@@ -45,6 +45,8 @@
     {% if is_agency_admin %}
       <section class="data-card settings-card">
         <small class="eyebrow">Admin</small><h3>Agence</h3>
+        <p class="muted-text">Pour préparer toutes les données essentielles en une fois, utilisez la configuration guidée.</p>
+        <p><a class="button secondary" href="{% url 'accounts:initial-data-setup' %}">Ouvrir le setup des données</a></p>
         <form method="post" class="form-stack compact-form">
           {% csrf_token %}<input type="hidden" name="action" value="agency">
           {% for field in agency_form %}<p><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}</p>{% endfor %}

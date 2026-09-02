@@ -134,6 +134,43 @@ class AgencySettingsForm(forms.ModelForm):
         return value
 
 
+class InitialDataSetupForm(AgencySettingsForm):
+    appointment_types = forms.CharField(
+        label='Types de rendez-vous',
+        required=False,
+        help_text='Un type par ligne. Les types existants sont conservés.',
+        widget=forms.Textarea(attrs={
+            'rows': 8,
+            'placeholder': 'Réunion client\nShooting\nRéunion interne',
+        }),
+    )
+
+    class Meta(AgencySettingsForm.Meta):
+        fields = (*AgencySettingsForm.Meta.fields, 'appointment_types')
+
+    def clean_appointment_types(self):
+        raw_names = self.cleaned_data['appointment_types']
+        names = []
+        seen = set()
+        for raw_name in raw_names.splitlines():
+            name = raw_name.strip()
+            if not name:
+                continue
+            if len(name) > 100:
+                raise ValidationError(
+                    'Chaque type de rendez-vous doit contenir au maximum 100 caractères.'
+                )
+            normalized = name.casefold()
+            if normalized not in seen:
+                names.append(name)
+                seen.add(normalized)
+        if not names:
+            raise ValidationError('Ajoutez au moins un type de rendez-vous.')
+        if len(names) > 30:
+            raise ValidationError('Vous pouvez initialiser au maximum 30 types à la fois.')
+        return names
+
+
 class AppointmentTypeSettingsForm(forms.ModelForm):
     class Meta:
         model = AppointmentType

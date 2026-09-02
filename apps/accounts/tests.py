@@ -2,7 +2,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core import mail
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpResponse
-from django.test import RequestFactory, TestCase, override_settings
+from django.test import Client as Browser, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 
 from .models import Profile
@@ -672,3 +672,128 @@ class SettingsTests(TestCase):
         )
         self.assertEqual(agency.status_code, 403)
         self.assertEqual(appointment_type.status_code, 403)
+
+    def test_initial_data_setup_page_is_admin_only_and_hides_credentials(self):
+        url = reverse('accounts:initial-data-setup')
+        self.assertEqual(self.client.get(url).status_code, 302)
+        for user in (self.manager, self.member):
+            with self.subTest(role=user.profile.role):
+                self.login(user)
+                self.assertEqual(self.client.get(url).status_code, 403)
+                self.assertNotContains(
+                    self.client.get(reverse('accounts:settings')),
+                    'Ouvrir le setup des données',
+                )
+
+        self.login(self.admin)
+        page = self.client.get(url)
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'Configuration initiale des données')
+        self.assertContains(page, 'SQLite connectée')
+        self.assertContains(page, 'Les identifiants et l’adresse de connexion restent protégés')
+        self.assertNotContains(page, 'DATABASE_URL')
+        self.assertNotContains(page, 'DJANGO_SECRET_KEY')
+        self.assertContains(
+            self.client.get(reverse('accounts:settings')),
+            'Ouvrir le setup des données',
+        )
+
+    def test_admin_setup_saves_agency_types_completion_and_audit_idempotently(self):
+        from apps.audit.models import ActivityLog
+        from apps.calendar_app.models import AppointmentType
+        from apps.core.models import AgencySettings
+
+        existing = AppointmentType.objects.get(name='Shooting')
+        existing.is_active = False
+        existing.save(update_fields=('is_active', 'updated_at'))
+        url = reverse('accounts:initial-data-setup')
+        payload = {
+            'agency_name': 'Agence Setup',
+            'logo_url': 'https://example.test/logo.png',
+            'timezone': 'Africa/Tunis',
+            'reminder_minutes': 20,
+            'appointment_types': 'Shooting\nAtelier stratégique\natelier stratégique',
+        }
+        self.login(self.admin)
+
+        response = self.client.post(url, payload)
+
+        self.assertRedirects(response, url)
+        settings_record = AgencySettings.load()
+        self.assertEqual(settings_record.agency_name, 'Agence Setup')
+        self.assertEqual(settings_record.reminder_minutes, 20)
+        self.assertEqual(settings_record.updated_by, self.admin)
+        self.assertIsNotNone(settings_record.setup_completed_at)
+        existing.refresh_from_db()
+        self.assertTrue(existing.is_active)
+        created = AppointmentType.objects.get(name='Atelier stratégique')
+        self.assertEqual(created.created_by, self.admin)
+        audit = ActivityLog.objects.get(action='initial_data_setup_saved')
+        self.assertEqual(audit.old_values['agency_name'], 'Agency Calendar')
+        self.assertEqual(audit.new_values['agency_name'], 'Agence Setup')
+        self.assertEqual(
+            audit.new_values['appointment_types'],
+            ['Shooting', 'Atelier stratégique'],
+        )
+        self.assertNotIn('DATABASE_URL', str(audit.new_values))
+
+        second = self.client.post(url, payload)
+        self.assertRedirects(second, url)
+        self.assertEqual(
+            AppointmentType.objects.filter(name__iexact='Atelier stratégique').count(),
+            1,
+        )
+
+    def test_invalid_or_csrf_missing_setup_does_not_write(self):
+        from apps.calendar_app.models import AppointmentType
+        from apps.core.models import AgencySettings
+
+        url = reverse('accounts:initial-data-setup')
+        settings_record = AgencySettings.load()
+        self.login(self.admin)
+        invalid = self.client.post(url, {
+            'agency_name': 'Invalid Setup', 'logo_url': '',
+            'timezone': 'Not/A-Timezone', 'reminder_minutes': 0,
+            'appointment_types': '',
+        })
+        self.assertEqual(invalid.status_code, 200)
+        self.assertContains(invalid, 'Fuseau horaire IANA invalide')
+        self.assertContains(invalid, 'Ajoutez au moins un type de rendez-vous')
+        settings_record.refresh_from_db()
+        self.assertEqual(settings_record.agency_name, 'Agency Calendar')
+        self.assertIsNone(settings_record.setup_completed_at)
+        self.assertFalse(AppointmentType.objects.filter(name='Invalid Setup').exists())
+
+        csrf_browser = Browser(enforce_csrf_checks=True)
+        csrf_browser.force_login(
+            self.admin, backend='apps.accounts.backends.EmailBackend',
+        )
+        self.assertEqual(csrf_browser.post(url, {
+            'agency_name': 'CSRF Setup', 'logo_url': '',
+            'timezone': 'Africa/Tunis', 'reminder_minutes': 30,
+            'appointment_types': 'CSRF Type',
+        }).status_code, 403)
+        settings_record.refresh_from_db()
+        self.assertEqual(settings_record.agency_name, 'Agency Calendar')
+
+    def test_setup_rolls_back_if_audit_cannot_be_recorded(self):
+        from unittest.mock import patch
+
+        from apps.calendar_app.models import AppointmentType
+        from apps.core.models import AgencySettings
+
+        url = reverse('accounts:initial-data-setup')
+        self.login(self.admin)
+        with patch(
+            'apps.accounts.views.log_activity',
+            side_effect=RuntimeError('audit unavailable'),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(url, {
+                    'agency_name': 'Rollback Setup', 'logo_url': '',
+                    'timezone': 'Africa/Tunis', 'reminder_minutes': 30,
+                    'appointment_types': 'Rollback Type',
+                })
+        self.assertEqual(AgencySettings.load().agency_name, 'Agency Calendar')
+        self.assertIsNone(AgencySettings.load().setup_completed_at)
+        self.assertFalse(AppointmentType.objects.filter(name='Rollback Type').exists())

@@ -12,6 +12,7 @@ FullCalendar et PostgreSQL. La production est publiée sur
 - rendez-vous récurrents, multi-affectation et avertissement de conflits ;
 - confidentialité des données client pour les membres non affectés ;
 - clients, équipe, tableau de bord, paramètres et historique d'audit ;
+- setup initial sécurisé des données réservé à l'Administrateur ;
 - notifications internes, Web Push et rappels planifiés ;
 - rapports individuels définitifs après chaque rendez-vous terminé ;
 - actualisation automatique du calendrier toutes les 10 secondes ;
@@ -149,6 +150,19 @@ node --test tests/js/calendar-color.test.cjs
 
 Avec `DEBUG=False` et une clé éphémère longue, exécuter également
 `manage.py check --deploy`.
+
+## Setup initial des données
+
+La page `/settings/data-setup/`, visible uniquement par l'Administrateur,
+regroupe la configuration initiale de l'agence : nom, logo, fuseau horaire,
+délai de rappel et types de rendez-vous. Elle affiche aussi un résumé des
+membres, clients, types actifs et rendez-vous présents dans la base.
+
+L'opération est non destructive : les données et types existants sont
+conservés, et un type désactivé portant le même nom est réactivé. La date du
+dernier setup et une trace d'audit sont enregistrées. L'URL PostgreSQL, les
+mots de passe et les secrets restent exclusivement dans les variables du
+serveur et ne sont jamais affichés ou modifiables depuis cette page.
 
 ## Exploitation et sauvegardes
 

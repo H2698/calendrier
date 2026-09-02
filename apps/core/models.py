@@ -8,6 +8,7 @@ class AgencySettings(models.Model):
     logo_url = models.URLField(blank=True)
     timezone = models.CharField(max_length=64, default='Africa/Tunis')
     reminder_minutes = models.PositiveSmallIntegerField(default=30)
+    setup_completed_at = models.DateTimeField(null=True, blank=True)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
